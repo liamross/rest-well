@@ -1,5 +1,5 @@
 import type z from "zod";
-import type {Status} from "./status";
+import type {AnySchema, ObjectSchema} from "./type-utils";
 
 type Path = string;
 
@@ -9,24 +9,27 @@ type MutationMethod = "POST" | "DELETE" | "PUT" | "PATCH";
 type Method = QueryMethod | MutationMethod;
 
 type PathParamValue = string | number | boolean | Date;
+type PathParamsInner = {[key: string]: PathParamValue};
 
 export type RouteContentType = "application/json" | "multipart/form-data" | "application/x-www-form-urlencoded";
-export type RoutePathParams = {[key: string]: PathParamValue};
-export type RouteResponses = {[key: number]: z.ZodSchema};
-export type RouteBody = z.ZodType<unknown>;
-export type RouteQuery = z.ZodType<unknown>;
-export type RouteHeaders = z.ZodType<unknown>;
+export type RoutePathParams = ObjectSchema<PathParamValue>;
+export type RouteResponses = {[key: number]: AnySchema};
+export type RouteBody = AnySchema;
+export type RouteQuery = ObjectSchema;
+export type RouteHeaders = ObjectSchema;
 
 type _PathParamsInner<S extends Path> = S extends `${infer _Start}{${infer Param}}${infer Rest}`
   ? {
       [k in
-        | (Param extends `${string}/${string}` ? {} : Param)
-        | keyof (_PathParamsInner<Rest> extends infer O extends RoutePathParams ? O : {})]: PathParamValue;
+        | (Param extends `${string}/${string}` ? never : Param)
+        // Allow any here since we don't care what the string is converted into by zod.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        | keyof (_PathParamsInner<Rest> extends infer O extends PathParamsInner ? O : {})]: any;
     }
   : undefined;
 
 type PathParams<S extends Path> =
-  _PathParamsInner<S> extends infer O extends RoutePathParams ? z.ZodType<O> : undefined;
+  _PathParamsInner<S> extends infer O extends PathParamsInner ? z.ZodType<O> : undefined;
 
 type PathParamsRemoved<P extends Path, PP extends PathParams<P>> = PP extends undefined
   ? {}
@@ -120,7 +123,7 @@ function routeMethodFactory<M extends Method, BP extends Path>(method: M, basePa
   return <
     B extends RouteBody,
     CT extends RouteContentType,
-    R extends {[key: number]: z.ZodSchema},
+    R extends {[key: number]: AnySchema},
     Q extends RouteQuery,
     H extends RouteHeaders,
     P extends Path,
