@@ -1,5 +1,6 @@
 import type z from "zod";
-import type {AnySchema, ObjectSchema} from "./type-utils";
+import type {RestrictPath} from "./path";
+import type {AnySchema, ObjectSchema, Prettify} from "./type-utils";
 
 type Path = string;
 
@@ -114,7 +115,7 @@ function routeMethodFactory<M extends Method, BP extends Path>(
     P extends Path,
     PP extends PathParams<`${BP}${P}`>,
   >(
-    path: P,
+    path: RestrictPath<P>,
     properties: RouteMethodFactoryProperties<`${BP}${P}`, PP, M, B, CT, R, Q, H>,
   ): RouteProperties<`${BP}${P}`, PP, M, B, CT, R, Q, H>;
 };
@@ -129,7 +130,7 @@ function routeMethodFactory<M extends Method, BP extends Path>(method: M, basePa
     P extends Path,
     PP extends PathParams<`${BP}${P}`>,
   >(
-    path: P | RouteMethodFactoryProperties<BP, PathParams<BP>, M, B, CT, R, Q, H>,
+    path: RestrictPath<P> | RouteMethodFactoryProperties<BP, PathParams<BP>, M, B, CT, R, Q, H>,
     properties?: RouteMethodFactoryProperties<`${BP}${P}`, PP, M, B, CT, R, Q, H>,
   ) => {
     if (typeof path === "string") {
@@ -163,19 +164,29 @@ function makeResourceHelpers<P extends Path>(path: P): ResourceRouteHelpers<P> {
 export type Resource = {[key: string]: Route};
 
 export function resource<R extends Resource, P extends Path>(
-  path: P,
+  path: RestrictPath<P>,
   router: (helpers: ResourceRouteHelpers<P>) => R,
 ): R;
 
 export function resource<R extends Resource>(router: (helpers: ResourceRouteHelpers<"">) => R): R;
 
 export function resource<R extends Resource, P extends Path>(
-  pathOrRouter: P | ((helpers: ResourceRouteHelpers<"">) => R),
+  pathOrRouter: RestrictPath<P> | ((helpers: ResourceRouteHelpers<"">) => R),
   routerOrUndefined?: (helpers: ResourceRouteHelpers<P>) => R,
 ): R {
   if (typeof pathOrRouter === "string") {
     if (routerOrUndefined === undefined) throw new Error("Second argument must be a function.");
-    return routerOrUndefined(makeResourceHelpers(pathOrRouter));
+    return routerOrUndefined(makeResourceHelpers(pathOrRouter as P));
   }
   return pathOrRouter(makeResourceHelpers(""));
 }
+
+export type RouteReturnValue<R extends Route> = {
+  [k in keyof R["responses"]]: Prettify<
+    {status: k extends number ? k : never} & (R["responses"][k] extends z.ZodType<infer T>
+      ? T extends undefined | void
+        ? {}
+        : {body: T}
+      : {}) & {headers?: Headers}
+  >;
+}[keyof R["responses"]];

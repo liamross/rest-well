@@ -19,9 +19,18 @@ export type UnwrapInternalUse<Wrapped> = Wrapped extends TypeError<string> ? Omi
 /** Checks to see if a type T is unknown or not. */
 type IsUnknown<T> = T extends unknown ? (unknown extends T ? true : false) : false;
 
+/** Checks to see if a type T is an object with unknown keys or not. */
+type IsUnknownObject<T> = T extends {[key: string]: infer V} ? IsUnknown<V> : false;
+
 export type ObjectSchema<T = unknown> = z.ZodType<{[key: string]: T}>;
 export type AnySchema = z.ZodType<unknown>;
 
 /** Infer the type from zod even if it's optional and may be unknown. */
-export type InferZod<Z extends z.ZodType<unknown> | undefined> =
-  NonNullable<Z> extends z.ZodType<infer T> ? (IsUnknown<T> extends true ? undefined : T) : undefined;
+export type InferZod<Z extends z.ZodType<unknown>> =
+  IsUnknown<z.infer<Z>> extends true ? undefined : IsUnknownObject<z.infer<Z>> extends true ? undefined : z.infer<Z>;
+
+export type ValidateShape<T, Shape> = T extends Shape
+  ? Exclude<keyof T, keyof Shape> extends never
+    ? T
+    : never
+  : never;

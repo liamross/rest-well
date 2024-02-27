@@ -1,5 +1,5 @@
 import type z from "zod";
-import type {Resource, Route, RouteProperties} from "./resource";
+import type {Resource, Route, RouteProperties, RouteReturnValue} from "./resource";
 import type {InferZod, Prettify} from "./type-utils";
 
 type RouteRequest<R extends Route> =
@@ -16,20 +16,15 @@ type RouteRequest<R extends Route> =
       >
     : never;
 
-type RouteResponse<R extends Route> = {
-  [k in keyof R["responses"]]: {
-    status: k extends number ? k : never;
-    body: k extends number ? z.infer<R["responses"][k]> : never;
-    headers?: Headers; // TODO: eventually we may want to enforce this.
-  };
-}[keyof R["responses"]];
+type RouteImplementation<R extends Route> = (req: RouteRequest<R>) => Promise<RouteReturnValue<R>>;
 
-type RouteImplementation<R extends Route> = (req: RouteRequest<R>) => Promise<RouteResponse<R>>;
-
-export function route<R extends Route>(route: R, implementation: RouteImplementation<R>) {
+export function route<R extends Route>(route: R, implementation: RouteImplementation<R>): RouteImplementation<R> {
   return implementation;
 }
 
-export function router<R extends Resource>(resource: R, implementations: {[K in keyof R]: RouteImplementation<R[K]>}) {
+export function router<R extends Resource>(
+  resource: R,
+  implementations: {[K in keyof R]: RouteImplementation<R[K]>},
+): {[K in keyof R]: RouteImplementation<R[K]>} {
   return implementations;
 }
