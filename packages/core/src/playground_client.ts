@@ -1,19 +1,26 @@
 import {createClient} from "./client";
-import {usersResource} from "./playground_resource";
+import {apiResource} from "./playground_resource";
 
-const client = createClient(usersResource);
+const client = createClient(apiResource);
 
 export async function main() {
-  const user = await client.update({
-    params: {id: "test"},
-    body: {name: "test"},
+  const user = await client.users.read({
+    params: {id: "test", version: "v1"},
   });
 
-  if (user.status === 201) {
-    user.body;
+  if (user.status === 200) {
+    isObject(user.body);
   }
 
   if (user.status === 404) {
-    user.body;
+    noBody(user);
+  }
+
+  if (user.status === 500) {
+    isString(user.body);
   }
 }
+
+const noBody = (value: {body?: never; [key: string]: unknown}): value is {body?: never; [key: string]: unknown} => true;
+const isObject = (value: object): value is object => true;
+const isString = (value: string): value is string => true;

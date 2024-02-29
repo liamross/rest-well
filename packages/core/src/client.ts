@@ -4,17 +4,17 @@ import type {InferZod, Prettify} from "./type-utils";
 
 type ClientArguments<R extends Route> =
   R extends RouteProperties<infer _P, infer PP, infer _M, infer B, infer _CT, infer _Res, infer Q, infer H>
-    ? Prettify<
-        (PP extends z.ZodType<infer O> ? {params: O} : {}) &
-          (InferZod<B> extends undefined ? {} : {body: z.infer<B>}) &
-          (InferZod<Q> extends undefined ? {} : {query: z.infer<Q>}) &
-          (InferZod<H> extends undefined ? {} : {headers: z.infer<H>})
-      >
+    ? (PP extends z.ZodType<infer O> ? {params: Prettify<O>} : {}) &
+        (InferZod<B> extends undefined ? {} : {body: Prettify<z.infer<B>>}) &
+        (InferZod<Q> extends undefined ? {} : {query: Prettify<z.infer<Q>>}) &
+        (InferZod<H> extends undefined ? {} : {headers: Prettify<z.infer<H>>})
     : never;
 
-type ClientImplementation<R extends Route> = (
-  args: Prettify<ClientArguments<R>>,
-) => Promise<Prettify<RouteReturnValue<R>>>;
+type ClientImplementation<R extends Resource | Route> = R extends Resource
+  ? {[K in keyof R]: ClientImplementation<R[K]>}
+  : R extends Route
+    ? (args: Prettify<ClientArguments<R>>) => Promise<Prettify<RouteReturnValue<R>>>
+    : never;
 
 function clientRoute<R extends Route>(route: R): ClientImplementation<R> {
   throw new Error("NOT IMPLEMENTED");

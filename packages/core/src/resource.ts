@@ -89,7 +89,7 @@ export type RouteProperties<
 
 export type Route = {method: Method; path: Path} & RouteValues<RouteResponses, RouteQuery, RouteHeaders>;
 
-type ResourceValues<R extends RouteResponses, H extends RouteHeaders> = {
+type ResourceValues<R extends RouteResponses | undefined, H extends RouteHeaders | undefined> = {
   sharedResponses?: R;
   sharedHeaders?: H;
 };
@@ -97,45 +97,34 @@ type ResourceValues<R extends RouteResponses, H extends RouteHeaders> = {
 type ResourceCreateProperties<
   BP extends Path,
   BPP extends PathParams<BP>,
-  SR extends RouteResponses,
-  SH extends RouteHeaders,
+  SR extends RouteResponses | undefined,
+  SH extends RouteHeaders | undefined,
 > = {basePath?: RestrictPath<BP>} & PathParamsRemoved<BP, BPP> & ResourceValues<SR, SH>;
 
 type _ResourceCreateProperties<
-  BP extends Path,
-  BPP extends RoutePathParams | undefined,
-  SR extends RouteResponses,
-  SH extends RouteHeaders,
-> = {basePath?: BP} & PathParamsUndef<BPP> & ResourceValues<SR, SH>;
-
-type RoutePropertiesCombined<
-  // Resource.
   BP extends Path | undefined,
   BPP extends RoutePathParams | undefined,
   SR extends RouteResponses | undefined,
   SH extends RouteHeaders | undefined,
-  // Route.
-  _Route extends Route,
-> =
-  _Route extends RouteProperties<infer P, infer PP, infer M, infer B, infer CT, infer R, infer Q, infer H>
-    ? RouteProperties<
-        CombineStrings<BP, P>,
-        CombineZodSchemas<BPP, PP>,
-        M,
-        B,
-        CT,
-        CombineObjects<SR, R>,
-        Q,
-        CombineZodSchemas<SH, H>
-      >
-    : never;
+> = {basePath?: BP} & PathParamsUndef<BPP> & ResourceValues<SR, SH>;
 
-function combineRouteWithResource<
-  // Resource.
-  BP extends Path,
-  BPP extends RoutePathParams | undefined,
-  SR extends RouteResponses,
-  SH extends RouteHeaders,
+type ResourceCreate = {
+  basePath?: Path | undefined;
+  pathParams?: RoutePathParams | undefined;
+  sharedResponses?: RouteResponses | undefined;
+  sharedHeaders?: RouteHeaders | undefined;
+};
+type _BP<Res extends ResourceCreate | undefined> =
+  Res extends _ResourceCreateProperties<infer P, infer _PP, infer _R, infer _H> ? P : undefined;
+type _BPP<Res extends ResourceCreate | undefined> =
+  Res extends _ResourceCreateProperties<infer _P, infer PP, infer _R, infer _H> ? PP : undefined;
+type _SR<Res extends ResourceCreate | undefined> =
+  Res extends _ResourceCreateProperties<infer _P, infer _PP, infer R, infer _H> ? R : undefined;
+type _SH<Res extends ResourceCreate | undefined> =
+  Res extends _ResourceCreateProperties<infer _P, infer _PP, infer _R, infer H> ? H : undefined;
+
+type RoutePropertiesCombined<
+  Res extends ResourceCreate | undefined,
   // Route.
   P extends Path,
   PP extends RoutePathParams | undefined,
@@ -145,13 +134,36 @@ function combineRouteWithResource<
   R extends RouteResponses,
   Q extends RouteQuery,
   H extends RouteHeaders,
+> = RouteProperties<
+  CombineStrings<_BP<Res>, P>,
+  CombineZodSchemas<_BPP<Res>, PP>,
+  M,
+  B,
+  CT,
+  CombineObjects<_SR<Res>, R>,
+  Q,
+  CombineZodSchemas<_SH<Res>, H>
+>;
+
+function combineRouteWithResource<
+  // Resource.
+  Res extends ResourceCreate,
+  // Route.
+  P extends Path,
+  PP extends RoutePathParams,
+  M extends Method,
+  B extends RouteBody,
+  CT extends RouteContentType,
+  R extends RouteResponses,
+  Q extends RouteQuery,
+  H extends RouteHeaders,
 >(
-  resourceProperties: _ResourceCreateProperties<BP, BPP, SR, SH> | undefined,
   route: RouteProperties<P, PP, M, B, CT, R, Q, H>,
-): RoutePropertiesCombined<BP, BPP, SR, SH, typeof route> {
+  resourceProperties?: Res,
+): RoutePropertiesCombined<Res, P, PP, M, B, CT, R, Q, H> {
   return {
     path: combineStrings(resourceProperties?.basePath, route.path),
-    pathParams: combineZodSchemas(resourceProperties?.pathParams, route.pathParams) as CombineZodSchemas<BPP, PP>,
+    pathParams: combineZodSchemas(resourceProperties?.pathParams, route.pathParams),
     headers: combineZodSchemas(resourceProperties?.sharedHeaders, route.headers),
     responses: combineObjects(resourceProperties?.sharedResponses, route.responses),
     method: route.method,
@@ -164,17 +176,18 @@ function combineRouteWithResource<
   };
 }
 
-type CombineObjects<A extends object | undefined, B extends object> = Omit<A, keyof B> & B;
+type CombineStrings<A extends string | undefined, B extends string> = A extends string ? `${NonNullable<A>}${B}` : B;
 
-function combineObjects<A extends object, B extends object>(a: A | undefined, b: B): CombineObjects<A, B> {
-  return {...a, ...b} as CombineObjects<A, B>;
-}
-
-type CombineStrings<A extends string | undefined, B extends string> = A extends undefined ? B : `${A}${B}`;
-
-function combineStrings<A extends string, B extends string>(a: A | undefined, b: B): CombineStrings<A, B> {
+function combineStrings<A extends string | undefined, B extends string>(a: A | undefined, b: B): CombineStrings<A, B> {
   if (a === undefined) return b as CombineStrings<A, B>;
   return `${a}${b}` as CombineStrings<A, B>;
+}
+
+type CombineObjects<A extends object | undefined, B extends object> = A extends object ? Omit<A, keyof B> & B : B;
+
+function combineObjects<A extends object | undefined, B extends object>(a: A | undefined, b: B): CombineObjects<A, B> {
+  if (a === undefined) return b as CombineObjects<A, B>;
+  return {...a, ...b} as unknown as CombineObjects<A, B>;
 }
 
 type CombineZodSchemas<A extends z.ZodType | undefined, B extends z.ZodType | undefined> = A extends z.ZodType
@@ -183,7 +196,7 @@ type CombineZodSchemas<A extends z.ZodType | undefined, B extends z.ZodType | un
     : A
   : B;
 
-function combineZodSchemas<A extends z.ZodType, B extends z.ZodType>(
+function combineZodSchemas<A extends z.ZodType | undefined, B extends z.ZodType | undefined>(
   a: A | undefined,
   b: B | undefined,
 ): CombineZodSchemas<A, B> {
@@ -192,15 +205,8 @@ function combineZodSchemas<A extends z.ZodType, B extends z.ZodType>(
   return a.and(b) as CombineZodSchemas<A, B>;
 }
 
-function routeMethodFactory<
-  M extends Method,
-  BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses,
-  SH extends RouteHeaders,
->(
+function routeMethodFactory<M extends Method>(
   method: M,
-  resourceProperties?: ResourceCreateProperties<BP, BPP, SR, SH>,
 ): {
   <
     B extends RouteBody,
@@ -209,8 +215,8 @@ function routeMethodFactory<
     Q extends RouteQuery,
     H extends RouteHeaders,
   >(
-    routeObj: RouteCreateProperties<"", PathParams<"">, M, B, CT, R, Q, H>,
-  ): RoutePropertiesCombined<BP, BPP, SR, SH, RouteProperties<"", undefined, M, B, CT, R, Q, H>>;
+    routeObj: RouteCreateProperties<"", undefined, M, B, CT, R, Q, H>,
+  ): RouteProperties<"", undefined, M, B, CT, R, Q, H>;
   <
     B extends RouteBody,
     CT extends RouteContentType,
@@ -222,18 +228,10 @@ function routeMethodFactory<
   >(
     path: RestrictPath<P>,
     properties: RouteCreateProperties<P, PP, M, B, CT, R, Q, H>,
-  ): RoutePropertiesCombined<BP, BPP, SR, SH, RouteProperties<P, PP, M, B, CT, R, Q, H>>;
+  ): RouteProperties<P, PP, M, B, CT, R, Q, H>;
 };
 
-function routeMethodFactory<
-  M extends Method,
-  BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses,
-  SH extends RouteHeaders,
->(method: M, _resourceProperties?: ResourceCreateProperties<BP, BPP, SR, SH>) {
-  const resourceProperties = _resourceProperties as _ResourceCreateProperties<BP, BPP, SR, SH> | undefined;
-
+function routeMethodFactory<M extends Method>(method: M) {
   return <
     B extends RouteBody,
     CT extends RouteContentType,
@@ -245,33 +243,73 @@ function routeMethodFactory<
   >(
     path: RestrictPath<P> | RouteCreateProperties<"", undefined, M, B, CT, R, Q, H>,
     properties?: RouteCreateProperties<P, PP, M, B, CT, R, Q, H>,
-  ): RoutePropertiesCombined<BP, BPP, SR, SH, RouteProperties<P, PP, M, B, CT, R, Q, H>> => {
+  ): RouteProperties<P, PP, M, B, CT, R, Q, H> | RouteProperties<"", undefined, M, B, CT, R, Q, H> => {
     if (typeof path === "string") {
       if (properties === undefined) throw new Error("Second argument must be route object.");
       const route: _RouteCreateProperties<PP, B, CT, R, Q, H> = properties as typeof properties & PathParamsUndef<PP>;
-      const routeProps: RouteProperties<P, PP, M, B, CT, R, Q, H> = {...route, path: path as P, method};
-      return combineRouteWithResource(resourceProperties, routeProps);
+      return {...route, path: path as P, method};
     }
-    const route: _RouteCreateProperties<PP, B, CT, R, Q, H> = path as typeof path & PathParamsUndef<PP>;
-    const routeProps: RouteProperties<P, PP, M, B, CT, R, Q, H> = {...route, path: "" as unknown as P, method};
-    return combineRouteWithResource(resourceProperties, routeProps);
+    const route: _RouteCreateProperties<undefined, B, CT, R, Q, H> = path as typeof path & PathParamsUndef<undefined>;
+    return {...route, path: "", method};
   };
 }
 
-type ResourceRouteHelpers<
-  BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses,
-  SH extends RouteHeaders,
+export type Resource = {[key: string]: Route | Resource};
+
+type FlushedResource<
+  R extends Resource,
+  BP extends Path | undefined,
+  BPP extends RoutePathParams | undefined,
+  SR extends RouteResponses | undefined,
+  SH extends RouteHeaders | undefined,
 > = {
-  GET: ReturnType<typeof routeMethodFactory<"GET", BP, BPP, SR, SH>>;
-  POST: ReturnType<typeof routeMethodFactory<"POST", BP, BPP, SR, SH>>;
-  PUT: ReturnType<typeof routeMethodFactory<"PUT", BP, BPP, SR, SH>>;
-  PATCH: ReturnType<typeof routeMethodFactory<"PATCH", BP, BPP, SR, SH>>;
-  DELETE: ReturnType<typeof routeMethodFactory<"DELETE", BP, BPP, SR, SH>>;
+  [K in keyof R]: R[K] extends RouteProperties<
+    infer P,
+    infer PP,
+    infer M,
+    infer B,
+    infer CT,
+    infer Res,
+    infer Q,
+    infer H
+  >
+    ? RoutePropertiesCombined<_ResourceCreateProperties<BP, BPP, SR, SH>, P, PP, M, B, CT, Res, Q, H>
+    : R[K] extends Resource
+      ? FlushedResource<R[K], BP, BPP, SR, SH>
+      : never;
 };
 
-export type Resource = {[key: string]: Route};
+function flushResource<
+  R extends Resource,
+  BP extends Path,
+  BPP extends RoutePathParams,
+  SR extends RouteResponses,
+  SH extends RouteHeaders,
+>(
+  resource: R,
+  properties?: _ResourceCreateProperties<BP, BPP, SR, SH> | undefined,
+): FlushedResource<R, BP, BPP, SR, SH> {
+  const flushed: Resource = {};
+  for (const key in resource) {
+    const value = resource[key]!;
+    // TODO: better check to see if it is a route!
+    if ("method" in value) {
+      // @ts-expect-error This is a hack to make the type system happy.
+      flushed[key] = combineRouteWithResource(value as Route, properties);
+    } else {
+      flushed[key] = flushResource(value, properties);
+    }
+  }
+  return flushed as FlushedResource<R, BP, BPP, SR, SH>;
+}
+
+export const GET = routeMethodFactory("GET");
+export const POST = routeMethodFactory("POST");
+export const PUT = routeMethodFactory("PUT");
+export const PATCH = routeMethodFactory("PATCH");
+export const DELETE = routeMethodFactory("DELETE");
+
+export function resource<R extends Resource>(router: R): FlushedResource<R, undefined, undefined, undefined, undefined>;
 
 export function resource<
   R extends Resource,
@@ -279,21 +317,21 @@ export function resource<
   BPP extends PathParams<BP>,
   SR extends RouteResponses,
   SH extends RouteHeaders,
->(
-  router: (helpers: ResourceRouteHelpers<BP, BPP, SR, SH>) => R,
-  properties?: ResourceCreateProperties<BP, BPP, SR, SH>,
-): R {
-  return router({
-    GET: routeMethodFactory("GET", properties),
-    POST: routeMethodFactory("POST", properties),
-    PUT: routeMethodFactory("PUT", properties),
-    PATCH: routeMethodFactory("PATCH", properties),
-    DELETE: routeMethodFactory("DELETE", properties),
-  });
+>(router: R, properties: ResourceCreateProperties<BP, BPP, SR, SH>): FlushedResource<R, BP, BPP, SR, SH>;
+
+export function resource<
+  R extends Resource,
+  BP extends Path,
+  BPP extends PathParams<BP>,
+  SR extends RouteResponses,
+  SH extends RouteHeaders,
+>(router: R, properties?: ResourceCreateProperties<BP, BPP, SR, SH>): FlushedResource<R, BP, BPP, SR, SH> {
+  const _properties = properties as _ResourceCreateProperties<BP, RoutePathParams, SR, SH> | undefined;
+  return flushResource(router, _properties) as FlushedResource<R, BP, BPP, SR, SH>;
 }
 
 export type RouteReturnValue<R extends Route> = {
-  [k in keyof R["responses"]]: {status: k extends number ? k : never} & (R["responses"][k] extends z.ZodType<infer T>
+  [k in keyof R["responses"]]: {status: k} & (R["responses"][k] extends z.ZodType<infer T>
     ? T extends undefined | void
       ? {}
       : {body: T}

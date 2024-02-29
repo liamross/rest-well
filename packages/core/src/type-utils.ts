@@ -17,20 +17,26 @@ export type InternalUse<Type, Message extends string> = Type & TypeError<Message
 export type UnwrapInternalUse<Wrapped> = Wrapped extends TypeError<string> ? Omit<Wrapped, typeof typeError> : Wrapped;
 
 /** Checks to see if a type T is unknown or not. */
-type IsUnknown<T> = T extends unknown ? (unknown extends T ? true : false) : false;
+export type IsUnknown<T> = T extends unknown ? (unknown extends T ? true : false) : false;
 
 /** Checks to see if a type T is an object with unknown keys or not. */
-type IsUnknownObject<T> = T extends {[key: string]: infer V} ? IsUnknown<V> : false;
+export type IsUnknownObject<T> = T extends {[key: string]: infer V} ? IsUnknown<V> : false;
 
 export type ObjectSchema<T = unknown> = z.ZodType<{[key: string]: T}>;
 export type AnySchema = z.ZodType<unknown>;
 
-/** Infer the type from zod even if it's optional and may be unknown. */
-export type InferZod<Z extends z.ZodType<unknown>> =
-  IsUnknown<z.infer<Z>> extends true ? undefined : IsUnknownObject<z.infer<Z>> extends true ? undefined : z.infer<Z>;
+export type RemoveUnknownValuesFromObject<T> = {
+  [K in keyof T]: IsUnknown<T[K]> extends true ? never : T[K];
+};
 
-export type ValidateShape<T, Shape> = T extends Shape
-  ? Exclude<keyof T, keyof Shape> extends never
-    ? T
-    : never
-  : never;
+/** Infer the type from zod even if it's optional and may be unknown. */
+export type InferZod<Z extends z.ZodType<unknown> | undefined> =
+  Z extends z.ZodType<infer T>
+    ? IsUnknown<T> extends true
+      ? undefined
+      : IsUnknownObject<T> extends true
+        ? undefined
+        : RemoveUnknownValuesFromObject<T> extends never
+          ? undefined
+          : T
+    : undefined;
