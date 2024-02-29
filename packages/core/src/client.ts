@@ -12,7 +12,9 @@ type ClientArguments<R extends Route> =
       >
     : never;
 
-type ClientImplementation<R extends Route> = (args: ClientArguments<R>) => Promise<RouteReturnValue<R>>;
+type ClientImplementation<R extends Route> = (
+  args: Prettify<ClientArguments<R>>,
+) => Promise<Prettify<RouteReturnValue<R>>>;
 
 function clientRoute<R extends Route>(route: R): ClientImplementation<R> {
   throw new Error("NOT IMPLEMENTED");
