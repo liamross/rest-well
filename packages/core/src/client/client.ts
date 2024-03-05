@@ -1,10 +1,3 @@
-import type {Resource, Route, RouteImplementation} from "../schema";
+import type {Route, RouteImplementation, Schema} from "../schema";
 
-function clientRoute<R extends Route>(route: R): RouteImplementation<R> {
-  throw new Error("NOT IMPLEMENTED");
-  // return (args) => {};
-}
-
-export function createClient<R extends Resource>(resource: R): RouteImplementation<R> {
-  throw new Error("NOT IMPLEMENTED");
-}
+export type Client = <T extends Schema | Route>(schema: T) => RouteImplementation<T>;

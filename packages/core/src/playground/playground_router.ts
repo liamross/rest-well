@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/require-await */
+import type {Router} from "../index";
 import type {Team, User} from "./playground_schema";
-import {route, router} from "../router";
 import {apiResource} from "./playground_schema";
 
-const list = route(apiResource.users.list, async ({query}) => ({status: 200, body: fakeUsers(query.limit)}));
+const router: Router = () => {
+  throw new Error("Not implemented");
+};
+
+const list = router(apiResource.users.list, async ({query}) => ({status: 200, body: fakeUsers(query.limit)}));
 
 const user = router(apiResource.users.user, {
   read: async ({headers}) => ({status: 401, body: `${headers.authorization} is invalid`}),

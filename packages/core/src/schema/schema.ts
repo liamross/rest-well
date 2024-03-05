@@ -14,7 +14,7 @@ import type {
   RouteResponses,
 } from "./shared";
 
-type _ResourceShared<
+type _SchemaShared<
   SR extends RouteResponses | undefined = undefined,
   SH extends RouteHeaders | undefined = undefined,
 > = {
@@ -22,25 +22,25 @@ type _ResourceShared<
   sharedHeaders?: SH;
 };
 
-type ResourceOptionCreateProperties<
-  Res extends Resource,
+type SchemaOptionCreateProperties<
+  Res extends Schema,
   BP extends Path,
   BPP extends PathParams<BP>,
   SR extends RouteResponses | undefined,
   SH extends RouteHeaders | undefined,
-> = {routes: Res} & (BPP extends undefined ? {} : {pathParams: NonNullable<BPP>}) & _ResourceShared<SR, SH>;
+> = {routes: Res} & (BPP extends undefined ? {} : {pathParams: NonNullable<BPP>}) & _SchemaShared<SR, SH>;
 
-type ResourceOptionProperties<
+type SchemaOptionProperties<
   BP extends Path,
   BPP extends RoutePathParams | undefined,
   SR extends RouteResponses | undefined,
   SH extends RouteHeaders | undefined,
-> = {basePath: BP} & {pathParams: BPP} & _ResourceShared<SR, SH>;
+> = {basePath: BP} & {pathParams: BPP} & _SchemaShared<SR, SH>;
 
-export type Resource = {[key: string]: Route | Resource};
+export type Schema = {[key: string]: Route | Schema};
 
 /**
- * Combine a route with a resource to create a new route with the combined
+ * Combine a route with a schema to create a new route with the combined
  * properties.
  */
 type RoutePropertiesCombined<
@@ -53,7 +53,7 @@ type RoutePropertiesCombined<
   R extends RouteResponses,
   Q extends RouteQuery | undefined,
   H extends RouteHeaders | undefined,
-  // Resource
+  // Schema
   BP extends Path,
   BPP extends RoutePathParams | undefined,
   SR extends RouteResponses | undefined,
@@ -69,7 +69,7 @@ type RoutePropertiesCombined<
   CombineZodSchemas<SH, H>
 >;
 
-function combineRouteWithResource<
+function combineRouteWithSchema<
   // Route.
   P extends Path,
   PP extends PathParams<P>,
@@ -79,20 +79,20 @@ function combineRouteWithResource<
   R extends RouteResponses,
   Q extends RouteQuery,
   H extends RouteHeaders,
-  // Resource.
+  // Schema.
   BP extends Path,
   BPP extends PathParams<BP>,
   SR extends RouteResponses | undefined = undefined,
   SH extends RouteHeaders | undefined = undefined,
 >(
   route: RouteProperties<P, PP, M, B, CT, R, Q, H>,
-  resourceProperties?: ResourceOptionProperties<BP, BPP, SR, SH>,
+  schemaProperties?: SchemaOptionProperties<BP, BPP, SR, SH>,
 ): RoutePropertiesCombined<P, PP, M, B, CT, R, Q, H, BP, BPP, SR, SH> {
   return {
-    path: combineStrings<BP, P>(resourceProperties?.basePath, route.path),
-    pathParams: combineZodSchemas(resourceProperties?.pathParams, route.pathParams),
-    headers: combineZodSchemas(resourceProperties?.sharedHeaders, route.headers),
-    responses: combineObjects(resourceProperties?.sharedResponses, route.responses),
+    path: combineStrings<BP, P>(schemaProperties?.basePath, route.path),
+    pathParams: combineZodSchemas(schemaProperties?.pathParams, route.pathParams),
+    headers: combineZodSchemas(schemaProperties?.sharedHeaders, route.headers),
+    responses: combineObjects(schemaProperties?.sharedResponses, route.responses),
     method: route.method,
     body: route.body,
     contentType: route.contentType,
@@ -129,8 +129,8 @@ function combineZodSchemas<A extends z.ZodType | undefined, B extends z.ZodType 
   return a.and(b) as CombineZodSchemas<A, B>;
 }
 
-type FlushedResource<
-  Res extends Resource,
+type FlushedSchema<
+  Res extends Schema,
   BP extends Path,
   BPP extends PathParams<BP>,
   SR extends RouteResponses | undefined,
@@ -147,80 +147,77 @@ type FlushedResource<
     infer H
   >
     ? RoutePropertiesCombined<P, PP, M, B, CT, R, Q, H, BP, BPP, SR, SH>
-    : Res[K] extends Resource
-      ? FlushedResource<Res[K], BP, BPP, SR, SH>
+    : Res[K] extends Schema
+      ? FlushedSchema<Res[K], BP, BPP, SR, SH>
       : never;
 };
 
-function isRoute(route: Route | Resource): route is Route {
+function isRoute(route: Route | Schema): route is Route {
   return "method" in route && typeof route.method === "string";
 }
 
-function flushResource<
-  Res extends Resource,
+function flushSchema<
+  Res extends Schema,
   BP extends Path,
   BPP extends PathParams<BP>,
   SR extends RouteResponses | undefined,
   SH extends RouteHeaders | undefined,
->(resource: Res, properties: ResourceOptionProperties<BP, BPP, SR, SH>): FlushedResource<Res, BP, BPP, SR, SH> {
-  const flushed: Resource = {};
-  for (const key in resource) {
-    const value = resource[key]!;
+>(schema: Res, properties: SchemaOptionProperties<BP, BPP, SR, SH>): FlushedSchema<Res, BP, BPP, SR, SH> {
+  const flushed: Schema = {};
+  for (const key in schema) {
+    const value = schema[key]!;
     if (isRoute(value)) {
       // Can't force this type using inference so we have to cast.
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-      flushed[key] = combineRouteWithResource(value as any, properties);
+      flushed[key] = combineRouteWithSchema(value as any, properties);
     } else {
-      flushed[key] = flushResource(value, properties);
+      flushed[key] = flushSchema(value, properties);
     }
   }
-  return flushed as FlushedResource<Res, BP, BPP, SR, SH>;
+  return flushed as FlushedSchema<Res, BP, BPP, SR, SH>;
 }
 
-export function resource<
-  Res extends Resource,
+export function schema<
+  Res extends Schema,
   SR extends RouteResponses | undefined = undefined,
   SH extends RouteHeaders | undefined = undefined,
->(properties: ResourceOptionCreateProperties<Res, "", undefined, SR, SH>): FlushedResource<Res, "", undefined, SR, SH>;
+>(properties: SchemaOptionCreateProperties<Res, "", undefined, SR, SH>): FlushedSchema<Res, "", undefined, SR, SH>;
 
-export function resource<
-  Res extends Resource,
+export function schema<
+  Res extends Schema,
   BP extends Path,
   BPP extends PathParams<BP>,
   SR extends RouteResponses | undefined = undefined,
   SH extends RouteHeaders | undefined = undefined,
 >(
   basePath: RestrictPath<BP>,
-  properties: ResourceOptionCreateProperties<Res, BP, BPP, SR, SH>,
-): FlushedResource<Res, BP, BPP, SR, SH>;
+  properties: SchemaOptionCreateProperties<Res, BP, BPP, SR, SH>,
+): FlushedSchema<Res, BP, BPP, SR, SH>;
 
-export function resource<
-  Res extends Resource,
+export function schema<
+  Res extends Schema,
   BP extends Path,
   BPP extends PathParams<BP>,
   SR extends RouteResponses | undefined = undefined,
   SH extends RouteHeaders | undefined = undefined,
 >(
-  pathOrProps: BP | ResourceOptionCreateProperties<Res, BP, BPP, SR, SH>,
-  propsIfPath?: ResourceOptionCreateProperties<Res, BP, BPP, SR, SH>,
-): FlushedResource<Res, BP, BPP, SR, SH> | FlushedResource<Res, "", undefined, SR, SH> {
+  pathOrProps: BP | SchemaOptionCreateProperties<Res, BP, BPP, SR, SH>,
+  propsIfPath?: SchemaOptionCreateProperties<Res, BP, BPP, SR, SH>,
+): FlushedSchema<Res, BP, BPP, SR, SH> | FlushedSchema<Res, "", undefined, SR, SH> {
   if (typeof pathOrProps === "string") {
-    if (!propsIfPath) throw new Error("Second argument must be a resource properties object.");
-    return flushResource(propsIfPath.routes, getResourceProps(pathOrProps, propsIfPath));
+    if (!propsIfPath) throw new Error("Second argument must be a schema properties object.");
+    return flushSchema(propsIfPath.routes, getSchemaProps(pathOrProps, propsIfPath));
   }
-  return flushResource(pathOrProps.routes, getResourceProps("", pathOrProps));
+  return flushSchema(pathOrProps.routes, getSchemaProps("", pathOrProps));
 }
 
-function getResourceProps<
-  Res extends Resource,
+function getSchemaProps<
+  Res extends Schema,
   BP extends Path,
   BPP extends PathParams<BP>,
   SR extends RouteResponses | undefined,
   SH extends RouteHeaders | undefined,
->(
-  basePath: BP,
-  props: ResourceOptionCreateProperties<Res, BP, BPP, SR, SH>,
-): ResourceOptionProperties<BP, BPP, SR, SH> {
+>(basePath: BP, props: SchemaOptionCreateProperties<Res, BP, BPP, SR, SH>): SchemaOptionProperties<BP, BPP, SR, SH> {
   const route = props as typeof props & {pathParams: BPP};
   return {...route, basePath};
 }
@@ -241,8 +238,8 @@ type RouteResponseValue<R extends Route> = {
     : {}) & {headers?: Headers};
 }[keyof R["responses"]];
 
-export type RouteImplementation<R extends Resource | Route> = R extends Resource
-  ? {[K in keyof R]: RouteImplementation<R[K]>}
-  : R extends Route
-    ? (req: Prettify<RouteRequestValue<R>>) => Promise<Prettify<RouteResponseValue<R>>>
+export type RouteImplementation<R extends Schema | Route> = R extends Route
+  ? (req: Prettify<RouteRequestValue<R>>) => Promise<Prettify<RouteResponseValue<R>>>
+  : R extends Schema
+    ? {[K in keyof R]: RouteImplementation<R[K]>}
     : never;

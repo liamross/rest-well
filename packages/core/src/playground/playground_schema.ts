@@ -1,5 +1,5 @@
 import z from "zod";
-import {DELETE, GET, PATCH, POST, resource} from "../schema";
+import {DELETE, GET, PATCH, POST, schema} from "../index";
 
 const userSchema = z.object({
   id: z.string(),
@@ -15,7 +15,7 @@ const teamSchema = z.object({
 export type Team = z.infer<typeof teamSchema>;
 const upsertTeamBody = teamSchema.omit({id: true});
 
-const user = resource("/{id}", {
+const user = schema("/{id}", {
   pathParams: userSchema.pick({id: true}),
   sharedResponses: {404: z.object({message: z.string()})},
 
@@ -33,7 +33,7 @@ const user = resource("/{id}", {
   },
 });
 
-const users = resource("/users", {
+const users = schema("/users", {
   routes: {
     user,
     list: GET({
@@ -52,7 +52,7 @@ const users = resource("/users", {
   },
 });
 
-const teams = resource("/teams", {
+const teams = schema("/teams", {
   routes: {
     create: POST({
       body: upsertTeamBody,
@@ -64,7 +64,7 @@ const teams = resource("/teams", {
   },
 });
 
-export const apiResource = resource("/api/{version}", {
+export const apiResource = schema("/api/{version}", {
   pathParams: z.object({version: z.literal("v1")}),
   sharedResponses: {500: z.string(), 401: z.string()},
   sharedHeaders: z.object({authorization: z.string()}),

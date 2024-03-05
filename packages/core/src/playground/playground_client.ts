@@ -1,5 +1,9 @@
-import {createClient} from "../client";
+import type {Client} from "../index";
 import {apiResource} from "./playground_schema";
+
+const createClient: Client = () => {
+  throw new Error("Not implemented");
+};
 
 const client = createClient(apiResource);
 
