@@ -1,4 +1,4 @@
-import type {Client} from "../index";
+import type {Client} from "@rest-well/core";
 import {apiResource} from "./playground_schema";
 
 const createClient: Client = () => {

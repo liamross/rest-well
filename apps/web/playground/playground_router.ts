@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/require-await */
-import type {Router} from "../index";
+import type {Router} from "@rest-well/core";
 import type {Team, User} from "./playground_schema";
 import {apiResource} from "./playground_schema";
 

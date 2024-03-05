@@ -100,16 +100,16 @@ function routeMethodFactory<M extends RouteMethod>(method: M) {
 export type Route = {method: RouteMethod; [key: string]: unknown};
 
 /** Retrieve data from the server. Usually used to read a target entity. */
-export const GET = routeMethodFactory("GET");
+export const GET: ReturnType<typeof routeMethodFactory<"GET">> = routeMethodFactory("GET");
 
 /** Send data to the server. Usually used to create a new entity. */
-export const POST = routeMethodFactory("POST");
+export const POST: ReturnType<typeof routeMethodFactory<"POST">> = routeMethodFactory("POST");
 
 /** Replace data on the server. Usually used to create or overwrite a target. */
-export const PUT = routeMethodFactory("PUT");
+export const PUT: ReturnType<typeof routeMethodFactory<"PUT">> = routeMethodFactory("PUT");
 
 /** Update data on the server. Usually used to update a target entity. */
-export const PATCH = routeMethodFactory("PATCH");
+export const PATCH: ReturnType<typeof routeMethodFactory<"PATCH">> = routeMethodFactory("PATCH");
 
 /** Remove data from the server. Usually used to delete a target entity. */
-export const DELETE = routeMethodFactory("DELETE");
+export const DELETE: ReturnType<typeof routeMethodFactory<"DELETE">> = routeMethodFactory("DELETE");

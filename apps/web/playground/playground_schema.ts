@@ -1,5 +1,5 @@
+import {DELETE, GET, PATCH, POST, schema} from "@rest-well/core";
 import z from "zod";
-import {DELETE, GET, PATCH, POST, schema} from "../index";
 
 const userSchema = z.object({
   id: z.string(),
