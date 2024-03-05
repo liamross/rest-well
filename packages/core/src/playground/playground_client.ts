@@ -1,11 +1,12 @@
-import {createClient} from "./client";
-import {apiResource} from "./playground_resource";
+import {createClient} from "../client";
+import {apiResource} from "./playground_schema";
 
 const client = createClient(apiResource);
 
 export async function main() {
-  const user = await client.users.read({
+  const user = await client.users.user.read({
     params: {id: "test", version: "v1"},
+    headers: {authorization: "test"},
   });
 
   if (user.status === 200) {

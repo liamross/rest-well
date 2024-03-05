@@ -22,9 +22,6 @@ export type IsUnknown<T> = T extends unknown ? (unknown extends T ? true : false
 /** Checks to see if a type T is an object with unknown keys or not. */
 export type IsUnknownObject<T> = T extends {[key: string]: infer V} ? IsUnknown<V> : false;
 
-export type ObjectSchema<T = unknown> = z.ZodType<{[key: string]: T}>;
-export type AnySchema = z.ZodType<unknown>;
-
 export type RemoveUnknownValuesFromObject<T> = {
   [K in keyof T]: IsUnknown<T[K]> extends true ? never : T[K];
 };
