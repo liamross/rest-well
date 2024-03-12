@@ -17,6 +17,10 @@ export async function main() {
     isObject(user.body);
   }
 
+  if (user.status === 401) {
+    isString(user.body);
+  }
+
   if (user.status === 404) {
     noBody(user);
   }

@@ -42,7 +42,7 @@ export type PathParams<S extends Path> =
 // Enforce path string.
 // -----------------------------------------------------------------------------
 
-type InvalidPathError<Original extends string, Error extends string> = `$_${Original}_$_${Error}$`;
+type InvalidPathError<Original extends string, Error extends string> = `${Original}|${Error}`;
 type FormatErrorOrString<T extends string> = T extends InvalidPathError<infer _O, infer E> ? `Invalid path: ${E}` : T;
 
 type StringMatches<S extends string, Match extends string, Error extends string> = S extends Match

@@ -9,9 +9,7 @@ export type Promisable<T> = T | Promise<T>;
 // this could prevent a similar shape object from being used in place of one we
 // want to enforce as coming from a specific source.
 declare const typeError: unique symbol;
-declare type TypeError<Message extends string> = {
-  readonly [typeError]: Message;
-};
+declare type TypeError<Message extends string> = {readonly [typeError]: Message};
 
 export type InternalUse<Type, Message extends string> = Type & TypeError<Message>;
 export type UnwrapInternalUse<Wrapped> = Wrapped extends TypeError<string> ? Omit<Wrapped, typeof typeError> : Wrapped;

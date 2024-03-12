@@ -46,7 +46,7 @@ export type RouteProperties<
   R extends RouteResponses,
   Q extends RouteQuery | undefined,
   H extends RouteHeaders | undefined,
-> = {method: M; path: P} & _RouteShared<R, Q, H> & {pathParams: PP} & {body?: B; contentType?: CT};
+> = {method: M; path: P; pathParams: PP; body?: B; contentType?: CT} & _RouteShared<R, Q, H>;
 
 function routeMethodFactory<M extends RouteMethod>(
   method: M,
@@ -60,6 +60,7 @@ function routeMethodFactory<M extends RouteMethod>(
   >(
     routeObj: RouteCreateProperties<"", undefined, M, B, CT, R, Q, H>,
   ): RouteProperties<"", undefined, M, B, CT, R, Q, H>;
+
   <
     P extends Path,
     PP extends PathParams<P>,

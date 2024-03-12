@@ -1,18 +1,19 @@
 {
-  "name": "web",
+  "name": "ts-rest",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "--build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
-    "@rest-well/core": "*",
+    "@ts-rest/core": "^3.33.0",
     "next": "^14.1.2",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",

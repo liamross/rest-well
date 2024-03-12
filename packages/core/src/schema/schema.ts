@@ -17,10 +17,7 @@ import type {
 type _SchemaShared<
   SR extends RouteResponses | undefined = undefined,
   SH extends RouteHeaders | undefined = undefined,
-> = {
-  sharedResponses?: SR;
-  sharedHeaders?: SH;
-};
+> = {sharedResponses?: SR; sharedHeaders?: SH};
 
 type SchemaOptionCreateProperties<
   Res extends Schema,
@@ -35,7 +32,7 @@ type SchemaOptionProperties<
   BPP extends RoutePathParams | undefined,
   SR extends RouteResponses | undefined,
   SH extends RouteHeaders | undefined,
-> = {basePath: BP} & {pathParams: BPP} & _SchemaShared<SR, SH>;
+> = {basePath: BP; pathParams: BPP} & _SchemaShared<SR, SH>;
 
 export type Schema = {[key: string]: Route | Schema};
 
@@ -169,7 +166,7 @@ function flushSchema<
     if (isRoute(value)) {
       // Can't force this type using inference so we have to cast.
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-      flushed[key] = combineRouteWithSchema(value as any, properties);
+      flushed[key] = combineRouteWithSchema(value as any, properties) as unknown as Route;
     } else {
       flushed[key] = flushSchema(value, properties);
     }
