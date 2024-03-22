@@ -2,6 +2,7 @@ import type {
   MutationMethod,
   Path,
   PathParams,
+  Prettify,
   RestrictPath,
   RouteBody,
   RouteContentType,
@@ -10,7 +11,7 @@ import type {
   RoutePathParams,
   RouteQuery,
   RouteResponses,
-} from "./shared";
+} from "../utils";
 
 type _RouteShared<R extends RouteResponses, Q extends RouteQuery | undefined, H extends RouteHeaders | undefined> = {
   responses: R;
@@ -25,9 +26,9 @@ type RouteCreateProperties<
   P extends Path,
   PP extends PathParams<P>,
   M extends RouteMethod,
-  B extends RouteBody,
-  CT extends RouteContentType,
   R extends RouteResponses,
+  CT extends RouteContentType | undefined,
+  B extends RouteBody | undefined,
   Q extends RouteQuery | undefined,
   H extends RouteHeaders | undefined,
 > = _RouteShared<R, Q, H> &
@@ -41,9 +42,9 @@ export type RouteProperties<
   P extends Path,
   PP extends RoutePathParams | undefined,
   M extends RouteMethod,
-  B extends RouteBody,
-  CT extends RouteContentType,
   R extends RouteResponses,
+  CT extends RouteContentType | undefined,
+  B extends RouteBody | undefined,
   Q extends RouteQuery | undefined,
   H extends RouteHeaders | undefined,
 > = {method: M; path: P; pathParams: PP; body?: B; contentType?: CT} & _RouteShared<R, Q, H>;
@@ -52,42 +53,42 @@ function routeMethodFactory<M extends RouteMethod>(
   method: M,
 ): {
   <
-    B extends RouteBody,
-    CT extends RouteContentType,
     R extends RouteResponses,
+    CT extends RouteContentType | undefined,
+    B extends RouteBody | undefined,
     Q extends RouteQuery | undefined = undefined,
     H extends RouteHeaders | undefined = undefined,
   >(
-    routeObj: RouteCreateProperties<"", undefined, M, B, CT, R, Q, H>,
-  ): RouteProperties<"", undefined, M, B, CT, R, Q, H>;
+    routeObj: RouteCreateProperties<"", undefined, M, R, CT, B, Q, H>,
+  ): Prettify<RouteProperties<"", undefined, M, R, CT, B, Q, H>>;
 
   <
     P extends Path,
     PP extends PathParams<P>,
-    B extends RouteBody,
-    CT extends RouteContentType,
     R extends RouteResponses,
+    CT extends RouteContentType | undefined,
+    B extends RouteBody | undefined,
     Q extends RouteQuery | undefined = undefined,
     H extends RouteHeaders | undefined = undefined,
   >(
     path: RestrictPath<P>,
-    properties: RouteCreateProperties<P, PP, M, B, CT, R, Q, H>,
-  ): RouteProperties<P, PP, M, B, CT, R, Q, H>;
+    properties: RouteCreateProperties<P, PP, M, R, CT, B, Q, H>,
+  ): Prettify<RouteProperties<P, PP, M, R, CT, B, Q, H>>;
 };
 
 function routeMethodFactory<M extends RouteMethod>(method: M) {
   return <
     P extends Path,
     PP extends PathParams<P>,
-    B extends RouteBody,
-    CT extends RouteContentType,
     R extends RouteResponses,
+    CT extends RouteContentType | undefined = undefined,
+    B extends RouteBody | undefined = undefined,
     Q extends RouteQuery | undefined = undefined,
     H extends RouteHeaders | undefined = undefined,
   >(
-    path: RestrictPath<P> | RouteCreateProperties<"", undefined, M, B, CT, R, Q, H>,
-    properties?: RouteCreateProperties<P, PP, M, B, CT, R, Q, H>,
-  ): RouteProperties<P, PP, M, B, CT, R, Q, H> | RouteProperties<"", undefined, M, B, CT, R, Q, H> => {
+    path: RestrictPath<P> | RouteCreateProperties<"", undefined, M, R, CT, B, Q, H>,
+    properties?: RouteCreateProperties<P, PP, M, R, CT, B, Q, H>,
+  ): RouteProperties<P, PP, M, R, CT, B, Q, H> | RouteProperties<"", undefined, M, R, CT, B, Q, H> => {
     if (typeof path === "string") {
       if (properties === undefined) throw new Error("Second argument must be route object.");
       const route = properties as typeof properties & {pathParams: PP};

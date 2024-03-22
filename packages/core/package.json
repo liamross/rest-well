@@ -7,13 +7,20 @@
     ".": {
       "import": "./dist/index.js",
       "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "types": "./src/index.ts"
+    },
+    "./client": {
+      "types": "./src/client/index.ts"
+    },
+    "./router": {
+      "types": "./src/router/index.ts"
     }
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "test": "npx vitest",
-    "build": "tsup src/index.ts --format esm,cjs --dts"
+    "build": "tsup src/index.ts --format esm,cjs",
+    "dev": "tsup src/index.ts --format esm,cjs --watch"
   },
   "dependencies": {
     "zod": "^3.22.4"

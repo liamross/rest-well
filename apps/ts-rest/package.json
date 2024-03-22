@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "--dev": "next dev",
     "--build": "next build",
-    "start": "next start",
-    "lint": "eslint . --max-warnings 0"
+    "--start": "next start",
+    "--lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
     "@ts-rest/core": "^3.33.0",

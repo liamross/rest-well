@@ -1,16 +1,44 @@
-import type {Client} from "@rest-well/core";
+import type {Client} from "@rest-well/core/client";
 import {apiResource} from "./playground_schema";
 
-const createClient: Client = () => {
-  throw new Error("Not implemented");
-};
-
-const client = createClient(apiResource);
-
 export async function main() {
+  const createClient: Client = () => null!;
+
+  const client = createClient(apiResource, {
+    baseUrl: "",
+    defaultValues: {
+      params: {version: "v1" as const},
+      headers: {authorization: "123", override: 1},
+      children: {
+        users: {
+          headers: {override: "hey"},
+          children: {
+            user: {
+              params: {id: "test"},
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // const client = createClient(apiResource, {
+  //   headers: {authorization: "test"},
+  // });
+
+  // const client = createClient(apiResource);
+
+  const health = await client.healthcheck({});
+
+  const createUser = await client.users.create({
+    headers: {"user-header": "test", authorization2: ""},
+    body: {
+      name: "test",
+    },
+  });
+
   const user = await client.users.user.read({
-    params: {id: "test", version: "v1"},
-    headers: {authorization: "test"},
+    headers: {"user-header": "test"},
   });
 
   if (user.status === 200) {

@@ -1,9 +1,13 @@
-import type z from "zod";
-import type {InferZod, Prettify} from "../type-utils";
-import type {Route, RouteProperties} from "./route";
+import type {z} from "zod";
 import type {
+  CombineObjects,
+  CombineStrings,
+  CombineZodSchemas,
+  IsUnknown,
+  NoEmptyObject,
   Path,
   PathParams,
+  Prettify,
   RestrictPath,
   RouteBody,
   RouteContentType,
@@ -12,7 +16,9 @@ import type {
   RoutePathParams,
   RouteQuery,
   RouteResponses,
-} from "./shared";
+} from "../utils";
+import type {Route, RouteProperties} from "./route";
+import {combineObjects, combineStrings, combineZodSchemas} from "../utils";
 
 type _SchemaShared<
   SR extends RouteResponses | undefined = undefined,
@@ -45,9 +51,9 @@ type RoutePropertiesCombined<
   P extends Path,
   PP extends RoutePathParams | undefined,
   M extends RouteMethod,
-  B extends RouteBody,
-  CT extends RouteContentType,
   R extends RouteResponses,
+  CT extends RouteContentType | undefined,
+  B extends RouteBody | undefined,
   Q extends RouteQuery | undefined,
   H extends RouteHeaders | undefined,
   // Schema
@@ -59,9 +65,9 @@ type RoutePropertiesCombined<
   CombineStrings<BP, P>,
   CombineZodSchemas<BPP, PP>,
   M,
-  B,
-  CT,
   CombineObjects<SR, R>,
+  CT,
+  B,
   Q,
   CombineZodSchemas<SH, H>
 >;
@@ -71,20 +77,20 @@ function combineRouteWithSchema<
   P extends Path,
   PP extends PathParams<P>,
   M extends RouteMethod,
-  B extends RouteBody,
-  CT extends RouteContentType,
   R extends RouteResponses,
+  CT extends RouteContentType | undefined,
+  B extends RouteBody | undefined,
   Q extends RouteQuery,
   H extends RouteHeaders,
   // Schema.
   BP extends Path,
   BPP extends PathParams<BP>,
-  SR extends RouteResponses | undefined = undefined,
-  SH extends RouteHeaders | undefined = undefined,
+  SR extends RouteResponses | undefined,
+  SH extends RouteHeaders | undefined,
 >(
-  route: RouteProperties<P, PP, M, B, CT, R, Q, H>,
+  route: RouteProperties<P, PP, M, R, CT, B, Q, H>,
   schemaProperties?: SchemaOptionProperties<BP, BPP, SR, SH>,
-): RoutePropertiesCombined<P, PP, M, B, CT, R, Q, H, BP, BPP, SR, SH> {
+): RoutePropertiesCombined<P, PP, M, R, CT, B, Q, H, BP, BPP, SR, SH> {
   return {
     path: combineStrings<BP, P>(schemaProperties?.basePath, route.path),
     pathParams: combineZodSchemas(schemaProperties?.pathParams, route.pathParams),
@@ -100,33 +106,7 @@ function combineRouteWithSchema<
   };
 }
 
-type CombineStrings<A extends string | undefined, B extends string> = A extends string ? `${A}${B}` : B;
-function combineStrings<A extends string | undefined, B extends string>(a: A | undefined, b: B): CombineStrings<A, B> {
-  if (a !== undefined) return `${a}${b}` as CombineStrings<A, B>;
-  return b as CombineStrings<A, B>;
-}
-
-type CombineObjects<A extends object | undefined, B extends object> = A extends object ? Omit<A, keyof B> & B : B;
-function combineObjects<A extends object | undefined, B extends object>(a: A | undefined, b: B): CombineObjects<A, B> {
-  if (a !== undefined) return {...a, ...b} as unknown as CombineObjects<A, B>;
-  return b as CombineObjects<A, B>;
-}
-
-type CombineZodSchemas<A extends z.ZodType | undefined, B extends z.ZodType | undefined> = A extends z.ZodType
-  ? B extends z.ZodType
-    ? z.ZodIntersection<A, B>
-    : A
-  : B;
-function combineZodSchemas<A extends z.ZodType | undefined, B extends z.ZodType | undefined>(
-  a: A | undefined,
-  b: B | undefined,
-): CombineZodSchemas<A, B> {
-  if (a === undefined) return b as CombineZodSchemas<A, B>;
-  if (b === undefined) return a as CombineZodSchemas<A, B>;
-  return a.and(b) as CombineZodSchemas<A, B>;
-}
-
-type FlushedSchema<
+export type FlushedSchema<
   Res extends Schema,
   BP extends Path,
   BPP extends PathParams<BP>,
@@ -137,13 +117,13 @@ type FlushedSchema<
     infer P,
     infer PP,
     infer M,
-    infer B,
-    infer CT,
     infer R,
+    infer CT,
+    infer B,
     infer Q,
     infer H
   >
-    ? RoutePropertiesCombined<P, PP, M, B, CT, R, Q, H, BP, BPP, SR, SH>
+    ? Prettify<RoutePropertiesCombined<P, PP, M, R, CT, B, Q, H, BP, BPP, SR, SH>>
     : Res[K] extends Schema
       ? FlushedSchema<Res[K], BP, BPP, SR, SH>
       : never;
@@ -219,15 +199,7 @@ function getSchemaProps<
   return {...route, basePath};
 }
 
-type RouteRequestValue<R extends Route> =
-  R extends RouteProperties<infer _P, infer PP, infer _M, infer B, infer _CT, infer _R, infer Q, infer H>
-    ? (PP extends z.ZodType<infer O> ? {params: Prettify<O>} : {}) &
-        (InferZod<B> extends undefined ? {} : {body: Prettify<z.infer<NonNullable<B>>>}) &
-        (InferZod<Q> extends undefined ? {} : {query: Prettify<z.infer<NonNullable<Q>>>}) &
-        (InferZod<H> extends undefined ? {} : {headers: Prettify<z.infer<NonNullable<H>>>})
-    : never;
-
-type RouteResponseValue<R extends Route> = {
+export type RouteResponseValue<R extends Route> = {
   [k in keyof R["responses"]]: {status: k} & (R["responses"][k] extends z.ZodType<infer T>
     ? T extends undefined | void
       ? {}
@@ -235,8 +207,16 @@ type RouteResponseValue<R extends Route> = {
     : {}) & {headers?: Headers};
 }[keyof R["responses"]];
 
-export type RouteImplementation<R extends Schema | Route> = R extends Route
-  ? (req: Prettify<RouteRequestValue<R>>) => Promise<Prettify<RouteResponseValue<R>>>
-  : R extends Schema
-    ? {[K in keyof R]: RouteImplementation<R[K]>}
-    : never;
+export type RouteRequestValue<R extends Route> =
+  R extends RouteProperties<infer _P, infer PP, infer _M, infer _R, infer _CT, infer B, infer Q, infer H>
+    ? TrimRoutePropertyKey<PP, "params"> &
+        TrimRoutePropertyKey<B, "body"> &
+        TrimRoutePropertyKey<Q, "query"> &
+        TrimRoutePropertyKey<H, "headers">
+    : {};
+
+type TrimRoutePropertyKey<T, K extends string> = T extends z.ZodTypeAny
+  ? NoEmptyObject<z.infer<T>> extends never
+    ? {}
+    : {[KK in K]: z.infer<T>}
+  : {};

@@ -34,6 +34,11 @@ const user = schema("/{id}", {
 });
 
 const users = schema("/users", {
+  sharedHeaders: z.object({
+    "user-header": z.string(),
+    override: z.string(),
+  }),
+
   routes: {
     user,
     list: GET({
@@ -53,12 +58,18 @@ const users = schema("/users", {
 });
 
 const teams = schema("/teams", {
+  sharedHeaders: z.object({
+    "team-header": z.string(),
+    override: z.string(),
+  }),
+
   routes: {
     create: POST({
       body: upsertTeamBody,
       responses: {201: teamSchema},
     }),
-    clear: DELETE({
+    clear: DELETE("/{id}", {
+      pathParams: z.object({id: z.string()}),
       responses: {200: z.undefined()},
     }),
   },
@@ -67,10 +78,18 @@ const teams = schema("/teams", {
 export const apiResource = schema("/api/{version}", {
   pathParams: z.object({version: z.literal("v1")}),
   sharedResponses: {500: z.string(), 401: z.string()},
-  sharedHeaders: z.object({authorization: z.string()}),
-
+  sharedHeaders: z.object({
+    authorization: z.string(),
+    override: z.number(),
+  }),
   routes: {
     users,
     teams,
+    healthcheck: GET("/healthcheck", {
+      responses: {200: z.object({status: z.string()})},
+    }),
   },
 });
+
+// eslint-disable-next-line no-unused-vars
+type __ = z.infer<NonNullable<typeof apiResource.users.create.body>>;

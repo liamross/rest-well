@@ -1,10 +1,8 @@
-import type {Router} from "@rest-well/core";
+import type {Router} from "@rest-well/core/router";
 import type {Team, User} from "./playground_schema";
 import {apiResource} from "./playground_schema";
 
-const router: Router = () => {
-  throw new Error("Not implemented");
-};
+const router: Router = () => null!;
 
 const list = router(apiResource.users.list, async ({query}) => ({status: 200, body: fakeUsers(query.limit)}));
 
@@ -23,15 +21,17 @@ const users = router(apiResource.users, {
 
 const teams = router(apiResource.teams, {
   create: async ({body}) => ({status: 201, body: fakeTeam(1, body)}),
-  clear: async () => ({status: 200}),
+  clear: async ({params}) => ({status: 200, body: params.id}),
 });
 
 export const routerSpec = router(apiResource, {
+  healthcheck: async () => ({status: 200, body: {status: "ok"}}),
   users,
   teams,
 });
 
 router(apiResource, {
+  healthcheck: async () => ({status: 200, body: {status: "ok"}}),
   teams,
   users: router(apiResource.users, {
     // @ts-expect-error Missing body.
