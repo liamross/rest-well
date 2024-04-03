@@ -129,7 +129,7 @@ export type FlushedSchema<
       : never;
 };
 
-function isRoute(route: Route | Schema): route is Route {
+export function isRoute(route: Route | Schema): route is Route {
   return "method" in route && typeof route.method === "string";
 }
 

@@ -70,7 +70,9 @@ const teams = schema("/teams", {
     }),
     clear: DELETE("/{id}", {
       pathParams: z.object({id: z.string()}),
-      responses: {200: z.undefined()},
+      responses: {
+        200: z.undefined(),
+      },
     }),
   },
 });
@@ -86,7 +88,9 @@ export const apiResource = schema("/api/{version}", {
     users,
     teams,
     healthcheck: GET("/healthcheck", {
-      responses: {200: z.object({status: z.string()})},
+      responses: {
+        200: z.object({status: z.string()}),
+      },
     }),
   },
 });

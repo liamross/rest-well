@@ -1,29 +1,29 @@
 import type {z} from "zod";
 import type {FlushedSchema, Route, RouteRequestValue, RouteResponseValue, Schema} from "../schema";
-import type {CombineObjects, IsFullyPartialObject, PartialByIfSameType, Prettify, PrettifyDeep} from "../utils";
+import type {CombineObjects, IsFullyPartialObject, PartialByIfSameType, Prettify} from "../utils";
 
-type _ClientDefaultValues = {params?: object; headers?: object; children?: {[key: string]: _ClientDefaultValues}};
+type _ClientDefaultValues = {params?: object; headers?: object; routes?: {[key: string]: _ClientDefaultValues}};
 
 type ClientDefaultValues<R extends Schema | Route> =
   R extends FlushedSchema<infer Res, infer _BP, infer BPP, infer _SR, infer SH>
     ? Prettify<
         ((BPP extends z.ZodTypeAny ? {params?: Prettify<Partial<z.infer<BPP>>>} : {}) &
           (SH extends z.ZodTypeAny ? {headers?: Prettify<Partial<z.infer<SH>>>} : {})) & {
-          children?: {
+          routes?: {
             [K in keyof Res as ClientDefaultValues<Res[K]> extends never ? never : K]?: ClientDefaultValues<Res[K]>;
           };
         }
       >
     : never;
 
-type CombineClientDefaultValues<A extends _ClientDefaultValues, K> = K extends keyof A["children"]
-  ? A["children"][K] extends infer Child extends _ClientDefaultValues
+type CombineClientDefaultValues<A extends _ClientDefaultValues, K> = K extends keyof A["routes"]
+  ? A["routes"][K] extends infer Child extends _ClientDefaultValues
     ? {
         params: CombineObjects<A["params"], Child["params"]>;
         headers: CombineObjects<A["headers"], Child["headers"]>;
         // Only include children if the key matches, so we don't match nested
         // children with the same name.
-        children: Child["children"];
+        routes: Child["routes"];
       }
     : {params: A["params"]; headers: A["headers"]}
   : {params: A["params"]; headers: A["headers"]};

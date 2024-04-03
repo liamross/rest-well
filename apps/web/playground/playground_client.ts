@@ -9,10 +9,10 @@ export async function main() {
     defaultValues: {
       params: {version: "v1" as const},
       headers: {authorization: "123", override: 1},
-      children: {
+      routes: {
         users: {
           headers: {override: "hey"},
-          children: {
+          routes: {
             user: {
               params: {id: "test"},
             },
@@ -31,14 +31,19 @@ export async function main() {
   const health = await client.healthcheck({});
 
   const createUser = await client.users.create({
-    headers: {"user-header": "test", authorization2: ""},
+    headers: {
+      "user-header": "test",
+      authorization2: "",
+    },
     body: {
       name: "test",
     },
   });
 
   const user = await client.users.user.read({
-    headers: {"user-header": "test"},
+    headers: {
+      "user-header": "test",
+    },
   });
 
   if (user.status === 200) {

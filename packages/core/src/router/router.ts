@@ -1,8 +1,12 @@
 import type {Route, RouteRequestValue, RouteResponseValue, Schema} from "../schema";
 import type {Prettify} from "../utils";
+import {isRoute} from "../schema";
+import {PathTree} from "./path";
+
+export type RouterFunction<R extends Route> = (req: RouteRequestValue<R>) => Promise<Prettify<RouteResponseValue<R>>>;
 
 export type RouterImplementation<R extends Schema | Route> = R extends Route
-  ? (req: RouteRequestValue<R>) => Promise<Prettify<RouteResponseValue<R>>>
+  ? RouterFunction<R>
   : R extends Schema
     ? {[K in keyof R]: RouterImplementation<R[K]>}
     : never;
