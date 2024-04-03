@@ -1,47 +1,48 @@
-import type {FlushedSchema, Route, RouteProperties, Schema} from "../schema";
+import type {FlushedSchema, Route, Schema} from "../schema";
 import type {Prettify, PrettifyDeep, RouteMethod} from "../utils";
 import type {RouterFunction, RouterImplementation} from "./router";
 import {isRoute} from "../schema";
 
 // Symbols to represent dynamic paths and methods.
-const pathParam = Symbol("pathParam");
-const GET = Symbol("GET");
-const POST = Symbol("POST");
-const DELETE = Symbol("DELETE");
-const PUT = Symbol("PUT");
-const PATCH = Symbol("PATCH");
+export const _pathParam = Symbol("pathParam");
+export const _get = Symbol("GET");
+export const _post = Symbol("POST");
+export const _delete = Symbol("DELETE");
+export const _put = Symbol("PUT");
+export const _patch = Symbol("PATCH");
 
 // Translate a method string into its appropriate symbol.
 const methodToSymbol = {
-  /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
-  GET: GET as typeof GET,
-  POST: POST as typeof POST,
-  DELETE: DELETE as typeof DELETE,
-  PUT: PUT as typeof PUT,
-  PATCH: PATCH as typeof PATCH,
-  /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
-} satisfies {[_ in RouteMethod]: symbol};
+  GET: _get,
+  POST: _post,
+  DELETE: _delete,
+  PUT: _put,
+  PATCH: _patch,
+} as const satisfies {[_ in RouteMethod]: symbol};
+
+type MethodToSymbol<K extends keyof typeof methodToSymbol> = (typeof methodToSymbol)[K];
+type MethodSymbol = (typeof methodToSymbol)[keyof typeof methodToSymbol];
 
 type SplitPath<P extends string> = P extends `${infer Head}/${infer Rest}`
   ? "" extends Head
     ? [...SplitPath<Rest>]
     : Head extends `{${string}}`
-      ? [typeof pathParam, ...SplitPath<Rest>]
+      ? [typeof _pathParam, ...SplitPath<Rest>]
       : [Head, ...SplitPath<Rest>]
   : P extends `{${string}}`
-    ? [typeof pathParam]
+    ? [typeof _pathParam]
     : [P];
 
 /** Turn a path string into an array of strings and pathParam symbols. */
 function splitPath<P extends string>(path: P): SplitPath<P> {
   const segments = path.split("/").filter((s) => s !== "");
-  return segments.map((s) => (s.startsWith("{") && s.endsWith("}") ? pathParam : s)) as SplitPath<P>;
+  return segments.map((s) => (s.startsWith("{") && s.endsWith("}") ? _pathParam : s)) as SplitPath<P>;
 }
 
-type PathSegments = (string | typeof pathParam)[];
+type PathSegments = (string | typeof _pathParam)[];
 
 type SplitPathToObj<P extends PathSegments, Child> = P extends [
-  infer K extends string | typeof pathParam,
+  infer K extends string | typeof _pathParam,
   ...infer Rest extends PathSegments,
 ]
   ? {[_ in K]: Rest extends [] ? Child : SplitPathToObj<Rest, Child>}
@@ -57,7 +58,7 @@ type SplitPathToObj<P extends PathSegments, Child> = P extends [
 type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
 
 type RouteAndImplementation<R extends Route> = {
-  [_ in (typeof methodToSymbol)[R["method"]]]: {route: R; fn: RouterFunction<R>};
+  [_ in MethodToSymbol<R["method"]>]: {route: R; fn: RouterFunction<R>};
 };
 
 // Flattened router input.
@@ -75,35 +76,60 @@ export type FlattenedRouterInput<T extends Schema | Route> = PrettifyDeep<
 type _RouterFunction = (...args: unknown[]) => unknown;
 type _RouteAndImplementation = {route: Route; fn: _RouterFunction};
 type _FlattenedRouterLeaf = {
-  [GET]?: _RouteAndImplementation;
-  [POST]?: _RouteAndImplementation;
-  [DELETE]?: _RouteAndImplementation;
-  [PUT]?: _RouteAndImplementation;
-  [PATCH]?: _RouteAndImplementation;
+  [_get]?: _RouteAndImplementation;
+  [_post]?: _RouteAndImplementation;
+  [_delete]?: _RouteAndImplementation;
+  [_put]?: _RouteAndImplementation;
+  [_patch]?: _RouteAndImplementation;
 };
-type _FlattenedRouterInput = _FlattenedRouterLeaf & {[path: string]: _FlattenedRouterLeaf};
+type _FlattenedRouter = _FlattenedRouterLeaf & {[path: string]: _FlattenedRouterLeaf};
 
 // Path tree.
 
-export type PathTree<R extends Schema | Route> =
-  R extends FlushedSchema<infer Res, infer BP, infer _BPP, infer _SR, infer _SH>
+// TODO: make this dependent on _FlattenedRouter not Schema | Route.
+export type PathTree<T extends Schema | Route> =
+  T extends FlushedSchema<infer Res, infer BP, infer _BPP, infer _SR, infer _SH>
     ? SplitPathToObj<SplitPath<BP>, Prettify<UnionToIntersection<PathTree<Res[keyof Res]>>>>
-    : R extends RouteProperties<infer P, infer _PP, infer M, infer _R, infer _CT, infer _B, infer _Q, infer _H>
-      ? "" extends P
-        ? {[_ in (typeof methodToSymbol)[M]]: RouterFunction<R & Route>}
-        : SplitPathToObj<SplitPath<P>, {[_ in (typeof methodToSymbol)[M]]: RouterFunction<R & Route>}>
+    : T extends Route
+      ? "" extends T["path"]
+        ? RouteAndImplementation<T>
+        : SplitPathToObj<SplitPath<T["path"]>, RouteAndImplementation<T>>
       : never;
 
 type _PathTree = {
   [x: string]: _PathTree;
-  [pathParam]?: _PathTree;
+  [_pathParam]?: _PathTree;
 
-  [GET]?: _RouteAndImplementation;
-  [POST]?: _RouteAndImplementation;
-  [DELETE]?: _RouteAndImplementation;
-  [PUT]?: _RouteAndImplementation;
-  [PATCH]?: _RouteAndImplementation;
+  [_get]?: _RouteAndImplementation;
+  [_post]?: _RouteAndImplementation;
+  [_delete]?: _RouteAndImplementation;
+  [_put]?: _RouteAndImplementation;
+  [_patch]?: _RouteAndImplementation;
 };
+
+function mergeFlattenedRouterTrees(oldTree: _FlattenedRouter, newTree: _FlattenedRouter): void {
+  const symbolKeys = Object.getOwnPropertySymbols(newTree) as MethodSymbol[];
+
+  for (const symbolKey of symbolKeys) {
+    const value = newTree[symbolKey]!;
+    const existing = oldTree[symbolKey];
+    if (existing) {
+      throw new Error(
+        `[FATAL] Duplicate routes: ${value.route.method} "${value.route.path}" matches same path as "${existing.route.path}"`,
+      );
+    }
+    oldTree[symbolKey] = value;
+  }
+
+  const stringKeys = Object.getOwnPropertyNames(newTree);
+  for (const stringKey of stringKeys) {
+    if (oldTree[stringKey]) {
+      mergeFlattenedRouterTrees(oldTree[stringKey]!, newTree[stringKey]!);
+    } else {
+      oldTree[stringKey] = newTree[stringKey]!;
+    }
+  }
+}
 
 export function flattenRouterTree<S extends Schema>(
   schema: S,
@@ -115,39 +141,31 @@ export function flattenRouterTree<S extends Schema>(
 function flattenRouterTreeInner(
   schema: Schema | Route,
   implementation: RouterImplementation<Schema | Route>,
-): _FlattenedRouterInput {
-  let result = {} as _FlattenedRouterInput;
-
+): _FlattenedRouter {
   if (isRoute(schema)) {
-    if (schema.path === "") {
-      const method = methodToSymbol[schema.method];
-      result[method] = {route: schema, fn: implementation as _RouterFunction};
-    } else {
-      if (!result[schema.path]) result[schema.path] = {};
-      if (result[schema.path]![methodToSymbol[schema.method]]) {
-        throw new Error(`Fatal: Duplicate route: ${schema.path} ${schema.method}`);
-      }
-      result[schema.path]![methodToSymbol[schema.method]] = {
-        route: schema,
-        fn: implementation as _RouterFunction,
-      };
-    }
+    const route = schema;
+    const method = methodToSymbol[route.method];
+    const fn = implementation as _RouterFunction;
+
+    if (route.path === "") return {[method]: {route, fn}};
+    return {[route.path]: {[method]: {route, fn}}};
   } else {
+    let result: _FlattenedRouter = {};
     for (const key in schema) {
       if (Object.prototype.hasOwnProperty.call(schema, key)) {
         const schemaOrRoute = schema[key]!;
         const childImplementation = implementation[key as keyof typeof implementation];
-        if (!childImplementation) throw new Error(`Fatal: No implementation found for route: ${key}`);
+        if (!childImplementation) throw new Error(`[FATAL] Missing route implementation: "${key}"`);
+        mergeFlattenedRouterTrees(result, flattenRouterTreeInner(schemaOrRoute, childImplementation));
         result = {...result, ...flattenRouterTreeInner(schemaOrRoute, childImplementation)};
       }
     }
+    return result;
   }
-
-  return result;
 }
 
 function getChildTreeFromPath(pathTree: _PathTree, path: string): _PathTree {
-  if (path !== "") return pathTree;
+  if (path === "") return pathTree;
   const pathSegments = splitPath(path);
 
   let current = pathTree;
@@ -160,11 +178,15 @@ function getChildTreeFromPath(pathTree: _PathTree, path: string): _PathTree {
 }
 
 function setMethodImplementations(oldTree: _PathTree, newTree: _FlattenedRouterLeaf): void {
-  const keys = Object.getOwnPropertySymbols(newTree) as (typeof methodToSymbol)[keyof typeof methodToSymbol][];
+  const keys = Object.getOwnPropertySymbols(newTree) as MethodSymbol[];
 
   for (const key of keys) {
     const value = newTree[key]!;
-    if (oldTree[key]) throw new Error(`Fatal: Duplicate route: ${value.route.path} ${value.route.method}`);
+    const existing = oldTree[key];
+    if (existing)
+      throw new Error(
+        `[FATAL] Overlapping routes: ${value.route.method} "${value.route.path}" matches same path as "${existing.route.path}"`,
+      );
     oldTree[key] = value;
   }
 }
@@ -173,7 +195,7 @@ export function buildPathTree<S extends Schema>(input: FlattenedRouterInput<S>):
   return buildPathTreeInner(input) as PathTree<S>;
 }
 
-function buildPathTreeInner(input: _FlattenedRouterInput): _PathTree {
+function buildPathTreeInner(input: _FlattenedRouter): _PathTree {
   const pathTree = {} as _PathTree;
 
   // This will implement all symbols aka method implementations.
