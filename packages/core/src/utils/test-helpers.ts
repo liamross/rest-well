@@ -3,6 +3,7 @@ import {expect} from "vitest";
 import {isSameType} from "zod-compare";
 import type {Branded} from "./branded";
 import type {Prettify} from "./helpers";
+import {RestWellError} from "../errors";
 
 type ValuesAreEqual<A, B> = Branded<{a: A; b: B}, "ValuesAreEqual">;
 type TypeMismatchError<A, B> = Branded<{a: A; b: B}, "TypeMismatchError">;
@@ -51,4 +52,16 @@ export function expectSameZodParse(z1: z.ZodType, z2: z.ZodType, obj: object, ex
   expect(a.data).toEqual(b.data);
 
   if (expected) expect(a.data).toEqual(expected);
+}
+
+export function handleRestWellError(fn: () => unknown, handler: (e: RestWellError) => void) {
+  try {
+    fn();
+    throw new Error("Expected an error to be thrown");
+  } catch (e) {
+    expect(e).toBeInstanceOf(RestWellError);
+    if (!(e instanceof RestWellError)) return;
+    handler(e);
+    return;
+  }
 }

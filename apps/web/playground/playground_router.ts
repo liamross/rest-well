@@ -1,10 +1,9 @@
-import type {FlattenedRouterInput, PathTree, Router} from "@rest-well/core/router";
+import type {FlattenedRouter, PathTree, Router} from "@rest-well/core/router";
 import type {Team, User} from "./playground_schema";
 import {apiResource} from "./playground_schema";
 
-type A = PathTree<typeof apiResource>;
-
-type B = FlattenedRouterInput<typeof apiResource>;
+type _FLAT = FlattenedRouter<typeof apiResource>;
+type _TREE = PathTree<_FLAT>;
 
 const router: Router = () => null!;
 

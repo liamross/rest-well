@@ -1,6 +1,7 @@
-import type {FlushedSchema, Route, Schema} from "../schema";
+import type {Route, Schema} from "../schema";
 import type {Prettify, PrettifyDeep, RouteMethod} from "../utils";
 import type {RouterFunction, RouterImplementation} from "./router";
+import {errors} from "../errors";
 import {isRoute} from "../schema";
 
 // Symbols to represent dynamic paths and methods.
@@ -63,9 +64,9 @@ type RouteAndImplementation<R extends Route> = {
 
 // Flattened router input.
 
-export type FlattenedRouterInput<T extends Schema | Route> = PrettifyDeep<
+export type FlattenedRouter<T extends Schema | Route> = PrettifyDeep<
   T extends Schema
-    ? UnionToIntersection<{[K in keyof T]: FlattenedRouterInput<T[K]>}[keyof T]>
+    ? UnionToIntersection<{[K in keyof T]: FlattenedRouter<T[K]>}[keyof T]>
     : T extends Route
       ? "" extends T["path"]
         ? RouteAndImplementation<T>
@@ -73,7 +74,8 @@ export type FlattenedRouterInput<T extends Schema | Route> = PrettifyDeep<
       : never
 >;
 
-type _RouterFunction = (...args: unknown[]) => unknown;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type _RouterFunction = (...args: any[]) => unknown;
 type _RouteAndImplementation = {route: Route; fn: _RouterFunction};
 type _FlattenedRouterLeaf = {
   [_get]?: _RouteAndImplementation;
@@ -86,15 +88,11 @@ type _FlattenedRouter = _FlattenedRouterLeaf & {[path: string]: _FlattenedRouter
 
 // Path tree.
 
-// TODO: make this dependent on _FlattenedRouter not Schema | Route.
-export type PathTree<T extends Schema | Route> =
-  T extends FlushedSchema<infer Res, infer BP, infer _BPP, infer _SR, infer _SH>
-    ? SplitPathToObj<SplitPath<BP>, Prettify<UnionToIntersection<PathTree<Res[keyof Res]>>>>
-    : T extends Route
-      ? "" extends T["path"]
-        ? RouteAndImplementation<T>
-        : SplitPathToObj<SplitPath<T["path"]>, RouteAndImplementation<T>>
-      : never;
+export type PathTree<T extends _FlattenedRouter> = PrettifyDeep<
+  UnionToIntersection<
+    {[K in keyof T]: K extends string ? Prettify<SplitPathToObj<SplitPath<K>, T[K]>> : {[_ in K]: T[K]}}[keyof T]
+  >
+>;
 
 type _PathTree = {
   [x: string]: _PathTree;
@@ -113,11 +111,7 @@ function mergeFlattenedRouterTrees(oldTree: _FlattenedRouter, newTree: _Flattene
   for (const symbolKey of symbolKeys) {
     const value = newTree[symbolKey]!;
     const existing = oldTree[symbolKey];
-    if (existing) {
-      throw new Error(
-        `[FATAL] Duplicate routes: ${value.route.method} "${value.route.path}" matches same path as "${existing.route.path}"`,
-      );
-    }
+    if (existing) throw errors.init_duplicate_routes(existing.route, value.route);
     oldTree[symbolKey] = value;
   }
 
@@ -134,8 +128,8 @@ function mergeFlattenedRouterTrees(oldTree: _FlattenedRouter, newTree: _Flattene
 export function flattenRouterTree<S extends Schema>(
   schema: S,
   implementation: RouterImplementation<S>,
-): FlattenedRouterInput<S> {
-  return flattenRouterTreeInner(schema, implementation) as FlattenedRouterInput<S>;
+): FlattenedRouter<S> {
+  return flattenRouterTreeInner(schema, implementation) as FlattenedRouter<S>;
 }
 
 function flattenRouterTreeInner(
@@ -150,14 +144,13 @@ function flattenRouterTreeInner(
     if (route.path === "") return {[method]: {route, fn}};
     return {[route.path]: {[method]: {route, fn}}};
   } else {
-    let result: _FlattenedRouter = {};
+    const result: _FlattenedRouter = {};
     for (const key in schema) {
       if (Object.prototype.hasOwnProperty.call(schema, key)) {
         const schemaOrRoute = schema[key]!;
         const childImplementation = implementation[key as keyof typeof implementation];
-        if (!childImplementation) throw new Error(`[FATAL] Missing route implementation: "${key}"`);
+        if (!childImplementation) throw errors.init_missing_route_implementation(key);
         mergeFlattenedRouterTrees(result, flattenRouterTreeInner(schemaOrRoute, childImplementation));
-        result = {...result, ...flattenRouterTreeInner(schemaOrRoute, childImplementation)};
       }
     }
     return result;
@@ -183,16 +176,13 @@ function setMethodImplementations(oldTree: _PathTree, newTree: _FlattenedRouterL
   for (const key of keys) {
     const value = newTree[key]!;
     const existing = oldTree[key];
-    if (existing)
-      throw new Error(
-        `[FATAL] Overlapping routes: ${value.route.method} "${value.route.path}" matches same path as "${existing.route.path}"`,
-      );
+    if (existing) throw errors.init_overlapping_routes(existing.route, value.route);
     oldTree[key] = value;
   }
 }
 
-export function buildPathTree<S extends Schema>(input: FlattenedRouterInput<S>): PathTree<S> {
-  return buildPathTreeInner(input) as PathTree<S>;
+export function buildPathTree<F extends _FlattenedRouter>(input: F): PathTree<F> {
+  return buildPathTreeInner(input) as PathTree<F>;
 }
 
 function buildPathTreeInner(input: _FlattenedRouter): _PathTree {

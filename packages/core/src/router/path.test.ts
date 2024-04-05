@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/require-await */
 import {describe, expect, test} from "vitest";
 import {z} from "zod";
+import type {Route} from "../schema";
 import type {Equal, Expect} from "../utils/test-helpers";
 import type {Router} from "./router";
-import {GET, schema} from "../schema";
-import {_get, _pathParam, buildPathTree, flattenRouterTree, getPathWithParams} from "./path";
+import {GET, POST, schema} from "../schema";
+import {handleRestWellError} from "../utils/test-helpers";
+import {_get, _pathParam, _post, buildPathTree, flattenRouterTree, getPathWithParams} from "./path";
 
 describe("getPathWithParams", () => {
   const getPathWithParamsTests: {
@@ -94,7 +96,30 @@ describe("Route parsing", () => {
       expect(fnBlock.fn).toBe(getUserFn);
     });
 
-    test("can identify a duplicate route", () => {
+    test("handles root routes", () => {
+      const rootSchema = schema({
+        routes: {
+          a: GET({responses: {200: z.string()}}),
+          b: POST("/b", {responses: {200: z.string()}}),
+        },
+      });
+      const rootRouter = router(rootSchema, {
+        a: async () => ({status: 200, body: "a"}),
+        b: async () => ({status: 200, body: "b"}),
+      });
+      const flat = flattenRouterTree(rootSchema, rootRouter);
+      const tree = buildPathTree(flat);
+      const stringKeys = Object.keys(tree);
+      const symbolKeys = Object.getOwnPropertySymbols(tree);
+      expect(stringKeys.length).toBe(1);
+      expect(symbolKeys.length).toBe(1);
+      expect(stringKeys).toContain("b");
+      expect(symbolKeys).toContain(_get);
+      expect(isRouteAndImplementation(tree[_get])).toBe(true);
+      expect(isRouteAndImplementation(tree.b[_post])).toBe(true);
+    });
+
+    test("errors on duplicate route", () => {
       const duplicateSchema = schema({
         routes: {
           a: GET("/{a}", {pathParams: z.object({a: z.string()}), responses: {200: z.string()}}),
@@ -105,27 +130,55 @@ describe("Route parsing", () => {
         a: async () => ({status: 200, body: "a"}),
         b: async () => ({status: 200, body: "b"}),
       });
-      expect(() => flattenRouterTree(duplicateSchema, duplicateRouter)).toThrow(
-        `[FATAL] Duplicate routes: GET "/{a}" matches same path as "/{a}"`,
+      handleRestWellError(
+        () => flattenRouterTree(duplicateSchema, duplicateRouter),
+        (e) => expect(e.code).toBe("init_duplicate_routes"),
       );
     });
 
-    test("can identify missing implementations", () => {
+    test("no error if duplicate route has different method", () => {
+      const duplicateSchema = schema({
+        routes: {
+          a: GET("/{a}", {pathParams: z.object({a: z.string()}), responses: {200: z.string()}}),
+          b: POST("/{a}", {pathParams: z.object({a: z.string()}), responses: {200: z.string()}}),
+        },
+      });
+      const duplicateRouter = router(duplicateSchema, {
+        a: async () => ({status: 200, body: "a"}),
+        b: async () => ({status: 200, body: "b"}),
+      });
+      const flat = flattenRouterTree(duplicateSchema, duplicateRouter);
+      const keys = Object.keys(flat);
+      expect(keys.length).toBe(1);
+      const expectedKey = "/{a}";
+      expect(keys[0]).toBe(expectedKey);
+      type _ = Expect<Equal<keyof typeof flat, typeof expectedKey>>;
+      const child = flat[keys[0] as typeof expectedKey];
+      const symbolKeys = Object.getOwnPropertySymbols(child);
+      expect(symbolKeys.length).toBe(2);
+      expect(symbolKeys).toContain(_get);
+      expect(isRouteAndImplementation(child[_get])).toBe(true);
+      expect(symbolKeys).toContain(_post);
+      expect(isRouteAndImplementation(child[_post])).toBe(true);
+    });
+
+    test("errors on missing implementations", () => {
       const exampleMissingImplementation = router(exampleSchema, {getUser: undefined!});
-      expect(() => flattenRouterTree(exampleSchema, exampleMissingImplementation)).toThrow(
-        `[FATAL] Missing route implementation: "getUser"`,
+      handleRestWellError(
+        () => flattenRouterTree(exampleSchema, exampleMissingImplementation),
+        (e) => expect(e.code).toBe("init_missing_route_implementation"),
       );
     });
   });
 
   describe("buildPathTree", () => {
     test("can build a path tree", () => {
-      const pathTree = buildPathTree<typeof exampleSchema>(exampleFlattened);
+      const pathTree = buildPathTree(exampleFlattened);
       const fnAndRoute = pathTree.api[_pathParam].users[_pathParam][_get];
       expect(fnAndRoute.fn).toBe(getUserFn);
     });
 
-    test("can identify an overlapping route", () => {
+    test("errors on overlapping route", () => {
       const overlappingSchema = schema({
         routes: {
           a: GET("/{a}", {pathParams: z.object({a: z.string()}), responses: {200: z.string()}}),
@@ -139,7 +192,41 @@ describe("Route parsing", () => {
       // Not thrown since paths are not an exact match.
       const flat = flattenRouterTree(overlappingSchema, overlappingRouter);
       // However, they match once the variables are extracted.
-      expect(() => buildPathTree(flat)).toThrow(`[FATAL] Overlapping routes: GET "/{b}" matches same path as "/{a}"`);
+      handleRestWellError(
+        () => buildPathTree(flat),
+        (e) => expect(e.code).toBe("init_overlapping_routes"),
+      );
+    });
+
+    test("no error if overlapping route has different method", () => {
+      const overlappingSchema = schema({
+        routes: {
+          a: GET("/{a}", {pathParams: z.object({a: z.string()}), responses: {200: z.string()}}),
+          b: POST("/{b}", {pathParams: z.object({b: z.string()}), responses: {200: z.string()}}),
+        },
+      });
+      const overlappingRouter = router(overlappingSchema, {
+        a: async () => ({status: 200, body: "a"}),
+        b: async () => ({status: 200, body: "b"}),
+      });
+      const tree = buildPathTree(flattenRouterTree(overlappingSchema, overlappingRouter));
+      const keys = Object.getOwnPropertySymbols(tree);
+      expect(keys.length).toBe(1);
+      const expectedKey = _pathParam;
+      expect(keys[0]).toBe(expectedKey);
+      const child = tree[keys[0] as keyof typeof tree];
+      const symbolKeys = Object.getOwnPropertySymbols(child);
+      expect(symbolKeys.length).toBe(2);
+      expect(symbolKeys).toContain(_get);
+      expect(isRouteAndImplementation(child[_get])).toBe(true);
+      expect(symbolKeys).toContain(_post);
+      expect(isRouteAndImplementation(child[_post])).toBe(true);
     });
   });
 });
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type __RouteAndImplementation = {route: Route; fn: (...args: any[]) => unknown};
+function isRouteAndImplementation(value: __RouteAndImplementation): value is __RouteAndImplementation {
+  return typeof value === "object" && value !== null && "route" in value && "fn" in value;
+}
