@@ -149,7 +149,10 @@ exports[`router > should match snapshot 1`] = `
             "pathParams": [ZodObject],
             "query": [ZodObject],
             "responses": {
-              "200": [ZodArray],
+              "200": {
+                "body": [ZodArray],
+                "headers": [ZodObject],
+              },
               "401": [ZodString],
               "500": [ZodString],
             },

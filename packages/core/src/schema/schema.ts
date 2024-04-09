@@ -14,6 +14,7 @@ import type {
   RequestHeaders,
   RequestQuery,
   Responses,
+  ResponseWithHeaders,
   RestrictPath,
 } from "../utils";
 import type {Route, RouteProperties} from "./route";
@@ -191,7 +192,12 @@ export type RouteResponseValue<R extends Route> = {
     ? T extends undefined | void
       ? {}
       : {body: T}
-    : {}) & {headers?: Headers};
+    : R["responses"][k] extends ResponseWithHeaders
+      ? {
+          body: z.infer<R["responses"][k]["body"]>;
+          headers: z.infer<R["responses"][k]["headers"]>;
+        }
+      : {});
 }[keyof R["responses"]];
 
 export type RouteRequestValue<R extends Route> =

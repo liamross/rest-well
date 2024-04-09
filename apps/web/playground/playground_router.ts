@@ -2,7 +2,11 @@ import {createRouter, router} from "@rest-well/core";
 import type {Team, User} from "./playground_schema";
 import {apiResource} from "./playground_schema";
 
-const list = router(apiResource.users.list, async ({query}) => ({status: 200, body: fakeUsers(query.limit)}));
+const list = router(apiResource.users.list, async ({query}) => ({
+  status: 200,
+  body: fakeUsers(query.limit),
+  headers: {total: 5},
+}));
 
 const user = router(apiResource.users.user, {
   read: async ({headers}) => ({status: 401, body: `${headers.authorization} is invalid`}),
@@ -38,8 +42,7 @@ router(apiResource, {
     list: () => Promise.resolve({status: 200}),
     // @ts-expect-error Wrong function.
     create: list,
-    // @ts-expect-error Wrong headers.
-    clear: () => ({status: 200, headers: {}}),
+    clear: () => ({status: 200, headers: {abc: ""}}),
 
     user: router(apiResource.users.user, {
       // @ts-expect-error Wrong body.

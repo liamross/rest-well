@@ -14,11 +14,13 @@ export type UnknownObject = {[k: string | number]: unknown};
 type UnknownZodType<T = unknown> = z.ZodType<T>;
 type UnknownZodObjectType<O extends object = UnknownObject> = z.ZodType<O>;
 
+export type ResponseWithHeaders = {body: UnknownZodType; headers: UnknownZodObjectType};
+
 // These are all the base types for route properties.
 export type Method = Prettify<QueryMethod | MutationMethod>;
 export type MediaType = "application/json" | "multipart/form-data" | "application/x-www-form-urlencoded";
 export type PathParams = UnknownZodObjectType;
-export type Responses = {[key: number]: UnknownZodType};
+export type Responses = {[key: number]: UnknownZodType | ResponseWithHeaders};
 export type RequestBody = UnknownZodType;
 export type RequestQuery = UnknownZodObjectType;
 export type RequestHeaders = UnknownZodObjectType;

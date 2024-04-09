@@ -3,7 +3,11 @@ import type {Team, User} from "./schema";
 import {router} from "../../";
 import {apiResource} from "./schema";
 
-const list = router(apiResource.users.list, async ({query}) => ({status: 200, body: fakeUsers(query.limit)}));
+const list = router(apiResource.users.list, async ({query}) => ({
+  status: 200,
+  body: fakeUsers(query.limit),
+  headers: {total: 5},
+}));
 
 const user = router(apiResource.users.user, {
   read: async ({headers}) => ({status: 401, body: `${headers.authorization} is invalid`}),

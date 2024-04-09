@@ -42,7 +42,12 @@ const users = schema("/users", {
   routes: {
     user,
     list: GET({
-      responses: {200: z.array(userSchema)},
+      responses: {
+        200: {
+          body: z.array(userSchema),
+          headers: z.object({total: z.coerce.number()}),
+        },
+      },
       query: z.object({limit: z.number().optional()}),
     }),
     create: POST({
