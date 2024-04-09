@@ -23,3 +23,6 @@ export type PrettifyDeep<T> = {[K in keyof T]: Prettify<T[K]>} & {};
 
 /** Checks to see if a type T is unknown or not. */
 export type IsUnknown<T> = T extends unknown ? (unknown extends T ? true : false) : false;
+
+/** Either a promise that resolves to T or T itself. */
+export type Promisable<T> = T | Promise<T>;

@@ -1,49 +1,63 @@
 import type {Route, Schema} from "../schema";
-import type {Prettify, PrettifyDeep, RouteMethod, UnknownObject} from "../utils";
+import type {Method, Prettify, PrettifyDeep, UnknownObject} from "../utils";
 import type {RouterFunction, RouterImplementation} from "./router";
 import {errors, initErrors} from "../errors";
 import {isRoute} from "../schema";
 
-// Symbols to represent dynamic paths and methods.
-export const _pathParam = Symbol("pathParam");
-export const _get = Symbol("GET");
-export const _post = Symbol("POST");
-export const _delete = Symbol("DELETE");
-export const _put = Symbol("PUT");
-export const _patch = Symbol("PATCH");
+/** Symbol representing a dynamic path segment. */
+export const $$variable = Symbol("VARIABLE");
+/** Symbol representing a GET method. */
+export const $$get = Symbol("GET");
+/** Symbol representing a POST method. */
+export const $$post = Symbol("POST");
+/** Symbol representing a DELETE method. */
+export const $$delete = Symbol("DELETE");
+/** Symbol representing a PUT method. */
+export const $$put = Symbol("PUT");
+/** Symbol representing a PATCH method. */
+export const $$patch = Symbol("PATCH");
 
-// Translate a method string into its appropriate symbol.
-const methodToSymbol = {
-  GET: _get,
-  POST: _post,
-  DELETE: _delete,
-  PUT: _put,
-  PATCH: _patch,
-} as const satisfies {[_ in RouteMethod]: symbol};
+/** Map methods to their symbols. */
+const methodToSymbolMap = {
+  GET: $$get,
+  POST: $$post,
+  DELETE: $$delete,
+  PUT: $$put,
+  PATCH: $$patch,
+} as const satisfies {[_ in Method]: symbol};
 
-type MethodToSymbol<K extends keyof typeof methodToSymbol> = (typeof methodToSymbol)[K];
-type MethodSymbol = (typeof methodToSymbol)[keyof typeof methodToSymbol];
+type MethodToSymbol<K extends keyof typeof methodToSymbolMap> = (typeof methodToSymbolMap)[K];
+export type MethodSymbol = (typeof methodToSymbolMap)[keyof typeof methodToSymbolMap];
+
+/**
+ * Given a method, returns a unique symbol representing the method.
+ * @param method The method of the route.
+ * @returns The matching method symbol.
+ */
+export function methodToSymbol<M extends Method>(method: M): MethodToSymbol<M> {
+  return methodToSymbolMap[method];
+}
 
 type SplitPath<P extends string> = P extends `${infer Head}/${infer Rest}`
   ? "" extends Head
     ? [...SplitPath<Rest>]
     : Head extends `{${string}}`
-      ? [typeof _pathParam, ...SplitPath<Rest>]
+      ? [typeof $$variable, ...SplitPath<Rest>]
       : [Head, ...SplitPath<Rest>]
   : P extends `{${string}}`
-    ? [typeof _pathParam]
+    ? [typeof $$variable]
     : [P];
 
 /** Turn a path string into an array of strings and pathParam symbols. */
 function splitPath<P extends string>(path: P): SplitPath<P> {
   const segments = path.split("/").filter((s) => s !== "");
-  return segments.map((s) => (s.startsWith("{") && s.endsWith("}") ? _pathParam : s)) as SplitPath<P>;
+  return segments.map((s) => (s.startsWith("{") && s.endsWith("}") ? $$variable : s)) as SplitPath<P>;
 }
 
-type PathSegments = (string | typeof _pathParam)[];
+type PathSegments = (string | typeof $$variable)[];
 
 type SplitPathToObj<P extends PathSegments, Child> = P extends [
-  infer K extends string | typeof _pathParam,
+  infer K extends string | typeof $$variable,
   ...infer Rest extends PathSegments,
 ]
   ? {[_ in K]: Rest extends [] ? Child : SplitPathToObj<Rest, Child>}
@@ -58,7 +72,8 @@ type RouteAndImplementation<R extends Route> = {
 
 // Flattened router input.
 
-export type FlattenedRouter<T extends Schema | Route> = PrettifyDeep<
+/** An intermediate flattened router representation. */
+type FlattenedRouter<T extends Schema | Route> = PrettifyDeep<
   T extends Schema
     ? UnionToIntersection<{[K in keyof T]: FlattenedRouter<T[K]>}[keyof T]>
     : T extends Route
@@ -72,17 +87,18 @@ export type FlattenedRouter<T extends Schema | Route> = PrettifyDeep<
 type _RouterFunction = (...args: any[]) => unknown;
 type _RouteAndImplementation = {route: Route; fn: _RouterFunction};
 type _FlattenedRouterLeaf = {
-  [_get]?: _RouteAndImplementation;
-  [_post]?: _RouteAndImplementation;
-  [_delete]?: _RouteAndImplementation;
-  [_put]?: _RouteAndImplementation;
-  [_patch]?: _RouteAndImplementation;
+  [$$get]?: _RouteAndImplementation;
+  [$$post]?: _RouteAndImplementation;
+  [$$delete]?: _RouteAndImplementation;
+  [$$put]?: _RouteAndImplementation;
+  [$$patch]?: _RouteAndImplementation;
 };
 type _FlattenedRouter = _FlattenedRouterLeaf & {[path: string]: _FlattenedRouterLeaf};
 
 // Path tree.
 
-export type PathTree<T extends _FlattenedRouter> = PrettifyDeep<
+/** The final path tree, which can be matched against a path. */
+type PathTree<T extends _FlattenedRouter> = PrettifyDeep<
   UnionToIntersection<
     {[K in keyof T]: K extends string ? Prettify<SplitPathToObj<SplitPath<K>, T[K]>> : {[_ in K]: T[K]}}[keyof T]
   >
@@ -90,13 +106,13 @@ export type PathTree<T extends _FlattenedRouter> = PrettifyDeep<
 
 type _PathTree = {
   [x: string]: _PathTree;
-  [_pathParam]?: _PathTree;
+  [$$variable]?: _PathTree;
 
-  [_get]?: _RouteAndImplementation;
-  [_post]?: _RouteAndImplementation;
-  [_delete]?: _RouteAndImplementation;
-  [_put]?: _RouteAndImplementation;
-  [_patch]?: _RouteAndImplementation;
+  [$$get]?: _RouteAndImplementation;
+  [$$post]?: _RouteAndImplementation;
+  [$$delete]?: _RouteAndImplementation;
+  [$$put]?: _RouteAndImplementation;
+  [$$patch]?: _RouteAndImplementation;
 };
 
 function mergeFlattenedRouterTrees(oldTree: _FlattenedRouter, newTree: _FlattenedRouter): void {
@@ -119,29 +135,36 @@ function mergeFlattenedRouterTrees(oldTree: _FlattenedRouter, newTree: _Flattene
   }
 }
 
-export function flattenRouterTree<S extends Schema>(
-  schema: S,
+/**
+ * A helper function to flatten a router tree. This occurs before the tree is
+ * parsed into a complete path tree.
+ * @param value The API schema or route.
+ * @param implementation The implementation functions for the API schema.
+ * @returns A flattened intermediate representation of the router.
+ */
+export function flattenRouterTree<S extends Schema | Route>(
+  value: S,
   implementation: RouterImplementation<S>,
 ): FlattenedRouter<S> {
-  return flattenRouterTreeInner(schema, implementation) as FlattenedRouter<S>;
+  return flattenRouterTreeInner(value, implementation) as FlattenedRouter<S>;
 }
 
 function flattenRouterTreeInner(
-  schema: Schema | Route,
+  value: Schema | Route,
   implementation: RouterImplementation<Schema | Route>,
 ): _FlattenedRouter {
-  if (isRoute(schema)) {
-    const route = schema;
-    const method = methodToSymbol[route.method];
+  if (isRoute(value)) {
+    const route = value;
+    const method = methodToSymbol(route.method);
     const fn = implementation as _RouterFunction;
 
     if (route.path === "") return {[method]: {route, fn}};
     return {[route.path]: {[method]: {route, fn}}};
   } else {
     const result: _FlattenedRouter = {};
-    for (const key in schema) {
-      if (Object.prototype.hasOwnProperty.call(schema, key)) {
-        const schemaOrRoute = schema[key]!;
+    for (const key in value) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        const schemaOrRoute = value[key]!;
         const childImplementation = implementation[key as keyof typeof implementation];
         if (!childImplementation) throw initErrors.init_missing_route_implementation(key);
         mergeFlattenedRouterTrees(result, flattenRouterTreeInner(schemaOrRoute, childImplementation));
@@ -175,7 +198,12 @@ function setMethodImplementations(oldTree: _PathTree, newTree: _FlattenedRouterL
   }
 }
 
-export function buildPathTree<F extends _FlattenedRouter>(input: F): PathTree<F> {
+/**
+ * Build a full path tree from a flattened intermediate router object.
+ * @param input The flattened intermediate router object.
+ * @returns The full path tree.
+ */
+export function buildRouterTree<F extends _FlattenedRouter>(input: F): PathTree<F> {
   return buildPathTreeInner(input) as PathTree<F>;
 }
 
@@ -209,10 +237,17 @@ function matchPathParams(path: string, params: string[]): {[key: string]: string
   return Object.fromEntries(variableNames.map((name, i) => [name, params[i]!]));
 }
 
-export function getHandler(
+/**
+ * Get the route handler for a given path and method.
+ * @param pathTree The path tree to search for the route handler.
+ * @param path The pathname of the request.
+ * @param method The method of the request.
+ * @returns The route, implementation and params, or undefined if not found.
+ */
+export function getRouteHandler(
   pathTree: _PathTree,
   path: string,
-  method: RouteMethod,
+  method: Method,
 ): (_RouteAndImplementation & {params?: UnknownObject}) | undefined {
   const pathSegments = path.slice(1).split("/");
   const paramValues: string[] = [];
@@ -223,15 +258,15 @@ export function getHandler(
       current = current[segment]!;
       continue;
     }
-    if (current[_pathParam]) {
-      current = current[_pathParam]!;
+    if (current[$$variable]) {
+      current = current[$$variable]!;
       paramValues.push(segment);
       continue;
     }
     return undefined;
   }
 
-  const routeAndImplementation = current[methodToSymbol[method]];
+  const routeAndImplementation = current[methodToSymbol(method)];
   if (!routeAndImplementation) return undefined;
 
   const stringParams = matchPathParams(routeAndImplementation.route.path, paramValues);
@@ -244,4 +279,21 @@ export function getHandler(
   if (!parsedParams.success) throw errors.invalid_path_params(parsedParams.error, routeAndImplementation.route.path);
 
   return {...routeAndImplementation, params: parsedParams.data};
+}
+
+/**
+ * A helper function to create a router tree from a schema and its
+ * implementations. This creates a path tree that can be used to match
+ * incoming requests to the correct route. This is generally for internal use
+ * only, since it's used by library-specific routers.
+ * @param schema The API schema to create a router tree from.
+ * @param router The root level router, or complete implementation of the schema.
+ * @returns A path tree generated from the schema and router.
+ */
+export function createRouter<T extends Schema | Route>(
+  schema: T,
+  router: RouterImplementation<T>,
+): PathTree<FlattenedRouter<T>> {
+  const flat = flattenRouterTree(schema, router);
+  return buildRouterTree(flat);
 }

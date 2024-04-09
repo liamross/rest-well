@@ -11,9 +11,6 @@
     },
     "./client": {
       "types": "./src/client/index.ts"
-    },
-    "./router": {
-      "types": "./src/router/index.ts"
     }
   },
   "scripts": {

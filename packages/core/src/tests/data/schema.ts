@@ -1,5 +1,5 @@
-import {DELETE, GET, PATCH, POST, schema} from "@rest-well/core";
 import {z} from "zod";
+import {DELETE, GET, PATCH, POST, schema} from "../../";
 
 const userSchema = z.object({
   id: z.string(),
@@ -94,6 +94,3 @@ export const apiResource = schema("/api/{version}", {
     }),
   },
 });
-
-// eslint-disable-next-line no-unused-vars
-type __ = z.infer<NonNullable<typeof apiResource.users.create.body>>;

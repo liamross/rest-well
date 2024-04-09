@@ -3,64 +3,72 @@ import type {
   CombineObjects,
   CombineStrings,
   CombineZodSchemas,
-  IsUnknown,
+  MediaType,
+  Method,
   NoEmptyObject,
   Path,
   PathParams,
+  PathParamSchema,
   Prettify,
+  RequestBody,
+  RequestHeaders,
+  RequestQuery,
+  Responses,
   RestrictPath,
-  RouteBody,
-  RouteContentType,
-  RouteHeaders,
-  RouteMethod,
-  RoutePathParams,
-  RouteQuery,
-  RouteResponses,
 } from "../utils";
 import type {Route, RouteProperties} from "./route";
 import {combineObjects, combineStrings, combineZodSchemas} from "../utils";
 
-type _SchemaShared<
-  SR extends RouteResponses | undefined = undefined,
-  SH extends RouteHeaders | undefined = undefined,
-> = {sharedResponses?: SR; sharedHeaders?: SH};
+/** Shared schema properties. */
+type _SchemaShared<SR extends Responses | undefined = undefined, SH extends RequestHeaders | undefined = undefined> = {
+  sharedResponses?: SR;
+  sharedHeaders?: SH;
+};
 
-type SchemaOptionCreateProperties<
+/** Properties passed into a schema builder. */
+type SchemaCreateProperties<
   Res extends Schema,
   BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses | undefined,
-  SH extends RouteHeaders | undefined,
+  BPP extends PathParamSchema<BP>,
+  SR extends Responses | undefined,
+  SH extends RequestHeaders | undefined,
 > = {routes: Res} & (BPP extends undefined ? {} : {pathParams: NonNullable<BPP>}) & _SchemaShared<SR, SH>;
 
-type SchemaOptionProperties<
+/** The properties defined for the schema. */
+type SchemaProperties<
   BP extends Path,
-  BPP extends RoutePathParams | undefined,
-  SR extends RouteResponses | undefined,
-  SH extends RouteHeaders | undefined,
+  BPP extends PathParams | undefined,
+  SR extends Responses | undefined,
+  SH extends RequestHeaders | undefined,
 > = {basePath: BP; pathParams: BPP} & _SchemaShared<SR, SH>;
 
+/** Non-generic schema properties. For internal use. */
+type _SchemaProperties = {
+  basePath: string;
+  pathParams?: PathParams;
+  sharedResponses?: Responses;
+  sharedHeaders?: RequestHeaders;
+};
+
+/** A non-generic basic schema object. This is usually for internal use only. */
 export type Schema = {[key: string]: Route | Schema};
 
-/**
- * Combine a route with a schema to create a new route with the combined
- * properties.
- */
+/** Result of combining schema properties with a route. */
 type RoutePropertiesCombined<
   // Route.
   P extends Path,
-  PP extends RoutePathParams | undefined,
-  M extends RouteMethod,
-  R extends RouteResponses,
-  CT extends RouteContentType | undefined,
-  B extends RouteBody | undefined,
-  Q extends RouteQuery | undefined,
-  H extends RouteHeaders | undefined,
+  PP extends PathParams | undefined,
+  M extends Method,
+  R extends Responses,
+  CT extends MediaType | undefined,
+  B extends RequestBody | undefined,
+  Q extends RequestQuery | undefined,
+  H extends RequestHeaders | undefined,
   // Schema
   BP extends Path,
-  BPP extends RoutePathParams | undefined,
-  SR extends RouteResponses | undefined,
-  SH extends RouteHeaders | undefined,
+  BPP extends PathParams | undefined,
+  SR extends Responses | undefined,
+  SH extends RequestHeaders | undefined,
 > = RouteProperties<
   CombineStrings<BP, P>,
   CombineZodSchemas<BPP, PP>,
@@ -72,29 +80,12 @@ type RoutePropertiesCombined<
   CombineZodSchemas<SH, H>
 >;
 
-function combineRouteWithSchema<
-  // Route.
-  P extends Path,
-  PP extends PathParams<P>,
-  M extends RouteMethod,
-  R extends RouteResponses,
-  CT extends RouteContentType | undefined,
-  B extends RouteBody | undefined,
-  Q extends RouteQuery,
-  H extends RouteHeaders,
-  // Schema.
-  BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses | undefined,
-  SH extends RouteHeaders | undefined,
->(
-  route: RouteProperties<P, PP, M, R, CT, B, Q, H>,
-  schemaProperties?: SchemaOptionProperties<BP, BPP, SR, SH>,
-): RoutePropertiesCombined<P, PP, M, R, CT, B, Q, H, BP, BPP, SR, SH> {
+/** Combine schema properties with a route. */
+function combineRouteWithSchema(route: Route, schemaProperties?: _SchemaProperties): Route {
   return {
-    path: combineStrings<BP, P>(schemaProperties?.basePath, route.path),
+    path: combineStrings(schemaProperties?.basePath, route.path),
     pathParams: combineZodSchemas(schemaProperties?.pathParams, route.pathParams),
-    headers: combineZodSchemas(schemaProperties?.sharedHeaders, route.headers),
+    headers: combineZodSchemas(schemaProperties?.sharedHeaders, route.headers as RequestHeaders | undefined),
     responses: combineObjects(schemaProperties?.sharedResponses, route.responses),
     method: route.method,
     body: route.body,
@@ -106,12 +97,13 @@ function combineRouteWithSchema<
   };
 }
 
+/** All routes combined with schema properties. */
 export type FlushedSchema<
   Res extends Schema,
   BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses | undefined,
-  SH extends RouteHeaders | undefined,
+  BPP extends PathParamSchema<BP>,
+  SR extends Responses | undefined,
+  SH extends RequestHeaders | undefined,
 > = {
   [K in keyof Res]: Res[K] extends RouteProperties<
     infer P,
@@ -129,24 +121,19 @@ export type FlushedSchema<
       : never;
 };
 
-export function isRoute(route: Route | Schema): route is Route {
-  return "method" in route && typeof route.method === "string";
-}
-
+/** Combine all routes with the properties passed to the schema. */
 function flushSchema<
   Res extends Schema,
   BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses | undefined,
-  SH extends RouteHeaders | undefined,
->(schema: Res, properties: SchemaOptionProperties<BP, BPP, SR, SH>): FlushedSchema<Res, BP, BPP, SR, SH> {
+  BPP extends PathParamSchema<BP>,
+  SR extends Responses | undefined,
+  SH extends RequestHeaders | undefined,
+>(schema: Res, properties: SchemaProperties<BP, BPP, SR, SH>): FlushedSchema<Res, BP, BPP, SR, SH> {
   const flushed: Schema = {};
   for (const key in schema) {
     const value = schema[key]!;
     if (isRoute(value)) {
-      // Can't force this type using inference so we have to cast.
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-      flushed[key] = combineRouteWithSchema(value as any, properties) as unknown as Route;
+      flushed[key] = combineRouteWithSchema(value, properties);
     } else {
       flushed[key] = flushSchema(value, properties);
     }
@@ -156,30 +143,30 @@ function flushSchema<
 
 export function schema<
   Res extends Schema,
-  SR extends RouteResponses | undefined = undefined,
-  SH extends RouteHeaders | undefined = undefined,
->(properties: SchemaOptionCreateProperties<Res, "", undefined, SR, SH>): FlushedSchema<Res, "", undefined, SR, SH>;
+  SR extends Responses | undefined = undefined,
+  SH extends RequestHeaders | undefined = undefined,
+>(properties: SchemaCreateProperties<Res, "", undefined, SR, SH>): FlushedSchema<Res, "", undefined, SR, SH>;
 
 export function schema<
   Res extends Schema,
   BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses | undefined = undefined,
-  SH extends RouteHeaders | undefined = undefined,
+  BPP extends PathParamSchema<BP>,
+  SR extends Responses | undefined = undefined,
+  SH extends RequestHeaders | undefined = undefined,
 >(
   basePath: RestrictPath<BP>,
-  properties: SchemaOptionCreateProperties<Res, BP, BPP, SR, SH>,
+  properties: SchemaCreateProperties<Res, BP, BPP, SR, SH>,
 ): FlushedSchema<Res, BP, BPP, SR, SH>;
 
 export function schema<
   Res extends Schema,
   BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses | undefined = undefined,
-  SH extends RouteHeaders | undefined = undefined,
+  BPP extends PathParamSchema<BP>,
+  SR extends Responses | undefined = undefined,
+  SH extends RequestHeaders | undefined = undefined,
 >(
-  pathOrProps: BP | SchemaOptionCreateProperties<Res, BP, BPP, SR, SH>,
-  propsIfPath?: SchemaOptionCreateProperties<Res, BP, BPP, SR, SH>,
+  pathOrProps: BP | SchemaCreateProperties<Res, BP, BPP, SR, SH>,
+  propsIfPath?: SchemaCreateProperties<Res, BP, BPP, SR, SH>,
 ): FlushedSchema<Res, BP, BPP, SR, SH> | FlushedSchema<Res, "", undefined, SR, SH> {
   if (typeof pathOrProps === "string") {
     if (!propsIfPath) throw new Error("Second argument must be a schema properties object.");
@@ -191,10 +178,10 @@ export function schema<
 function getSchemaProps<
   Res extends Schema,
   BP extends Path,
-  BPP extends PathParams<BP>,
-  SR extends RouteResponses | undefined,
-  SH extends RouteHeaders | undefined,
->(basePath: BP, props: SchemaOptionCreateProperties<Res, BP, BPP, SR, SH>): SchemaOptionProperties<BP, BPP, SR, SH> {
+  BPP extends PathParamSchema<BP>,
+  SR extends Responses | undefined,
+  SH extends RequestHeaders | undefined,
+>(basePath: BP, props: SchemaCreateProperties<Res, BP, BPP, SR, SH>): SchemaProperties<BP, BPP, SR, SH> {
   const route = props as typeof props & {pathParams: BPP};
   return {...route, basePath};
 }
@@ -220,3 +207,19 @@ type TrimRoutePropertyKey<T, K extends string> = T extends z.ZodTypeAny
     ? {}
     : {[KK in K]: z.infer<T>}
   : {};
+
+/**
+ * Used to determine whether an object is a route.
+ * @param route Either a route or a schema.
+ * @returns True if the object is a route.
+ */
+export function isRoute<T>(route: T | Route): route is Route {
+  return (
+    typeof route === "object" &&
+    route !== null &&
+    "method" in route &&
+    typeof route.method === "string" &&
+    "path" in route &&
+    typeof route.path === "string"
+  );
+}

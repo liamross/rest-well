@@ -1,19 +1,20 @@
 import type {
+  MediaType,
+  Method,
   MutationMethod,
   Path,
   PathParams,
+  PathParamSchema,
   Prettify,
+  RequestBody,
+  RequestHeaders,
+  RequestQuery,
+  Responses,
   RestrictPath,
-  RouteBody,
-  RouteContentType,
-  RouteHeaders,
-  RouteMethod,
-  RoutePathParams,
-  RouteQuery,
-  RouteResponses,
 } from "../utils";
 
-type _RouteShared<R extends RouteResponses, Q extends RouteQuery | undefined, H extends RouteHeaders | undefined> = {
+/** Shared route properties. */
+type _RouteShared<R extends Responses, Q extends RequestQuery | undefined, H extends RequestHeaders | undefined> = {
   responses: R;
   query?: Q;
   headers?: H;
@@ -22,69 +23,85 @@ type _RouteShared<R extends RouteResponses, Q extends RouteQuery | undefined, H 
   deprecated?: true;
 };
 
+/** Properties passed into a route method builder to create a route. */
 type RouteCreateProperties<
   P extends Path,
-  PP extends PathParams<P>,
-  M extends RouteMethod,
-  R extends RouteResponses,
-  CT extends RouteContentType | undefined,
-  B extends RouteBody | undefined,
-  Q extends RouteQuery | undefined,
-  H extends RouteHeaders | undefined,
+  PP extends PathParamSchema<P>,
+  M extends Method,
+  R extends Responses,
+  CT extends MediaType | undefined,
+  B extends RequestBody | undefined,
+  Q extends RequestQuery | undefined,
+  H extends RequestHeaders | undefined,
 > = _RouteShared<R, Q, H> &
   (PP extends undefined ? {} : {pathParams: NonNullable<PP>}) &
   (M extends MutationMethod ? {body?: B; contentType?: CT} : {});
 
-/**
- * These are the generic properties that are inside a route object.
- */
+/** A strongly typed route object. This is usually for internal use only. */
 export type RouteProperties<
   P extends Path,
-  PP extends RoutePathParams | undefined,
-  M extends RouteMethod,
-  R extends RouteResponses,
-  CT extends RouteContentType | undefined,
-  B extends RouteBody | undefined,
-  Q extends RouteQuery | undefined,
-  H extends RouteHeaders | undefined,
+  PP extends PathParams | undefined,
+  M extends Method,
+  R extends Responses,
+  CT extends MediaType | undefined,
+  B extends RequestBody | undefined,
+  Q extends RequestQuery | undefined,
+  H extends RequestHeaders | undefined,
 > = {method: M; path: P; pathParams: PP; body?: B; contentType?: CT} & _RouteShared<R, Q, H>;
 
-function routeMethodFactory<M extends RouteMethod>(
+/** A non-generic basic route object. This is usually for internal use only. */
+export type Route = {
+  // We include all the required properties.
+  method: Method;
+  path: string;
+  responses: Responses;
+  pathParams?: PathParams; // Included for typing route parsing.
+  // Including headers and query break types by including UnknownObject in the
+  // union. We don't want that and could work to fix it later but for now this
+  // is fine.
+  [key: string]: unknown;
+};
+
+// Overload for routeMethodFactory to allow for a route object as the first argument.
+function routeMethodFactory<M extends Method>(
   method: M,
 ): {
+  // No path as first argument, so empty string for path.
   <
-    R extends RouteResponses,
-    CT extends RouteContentType | undefined,
-    B extends RouteBody | undefined,
-    Q extends RouteQuery | undefined = undefined,
-    H extends RouteHeaders | undefined = undefined,
+    R extends Responses,
+    CT extends MediaType | undefined,
+    B extends RequestBody | undefined,
+    Q extends RequestQuery | undefined = undefined,
+    H extends RequestHeaders | undefined = undefined,
   >(
     routeObj: RouteCreateProperties<"", undefined, M, R, CT, B, Q, H>,
   ): Prettify<RouteProperties<"", undefined, M, R, CT, B, Q, H>>;
 
+  // Path as first argument, so we parse out path params as well.
   <
     P extends Path,
-    PP extends PathParams<P>,
-    R extends RouteResponses,
-    CT extends RouteContentType | undefined,
-    B extends RouteBody | undefined,
-    Q extends RouteQuery | undefined = undefined,
-    H extends RouteHeaders | undefined = undefined,
+    PP extends PathParamSchema<P>,
+    R extends Responses,
+    CT extends MediaType | undefined,
+    B extends RequestBody | undefined,
+    Q extends RequestQuery | undefined = undefined,
+    H extends RequestHeaders | undefined = undefined,
   >(
     path: RestrictPath<P>,
     properties: RouteCreateProperties<P, PP, M, R, CT, B, Q, H>,
   ): Prettify<RouteProperties<P, PP, M, R, CT, B, Q, H>>;
 };
 
-function routeMethodFactory<M extends RouteMethod>(method: M) {
+/** Internal factory to create route methods. */
+function routeMethodFactory<M extends Method>(method: M) {
   return <
     P extends Path,
-    PP extends PathParams<P>,
-    R extends RouteResponses,
-    CT extends RouteContentType | undefined = undefined,
-    B extends RouteBody | undefined = undefined,
-    Q extends RouteQuery | undefined = undefined,
-    H extends RouteHeaders | undefined = undefined,
+    PP extends PathParamSchema<P>,
+    R extends Responses,
+    CT extends MediaType | undefined = undefined,
+    B extends RequestBody | undefined = undefined,
+    Q extends RequestQuery | undefined = undefined,
+    H extends RequestHeaders | undefined = undefined,
   >(
     path: RestrictPath<P> | RouteCreateProperties<"", undefined, M, R, CT, B, Q, H>,
     properties?: RouteCreateProperties<P, PP, M, R, CT, B, Q, H>,
@@ -98,8 +115,6 @@ function routeMethodFactory<M extends RouteMethod>(method: M) {
     return {...route, path: "" as P, method};
   };
 }
-
-export type Route = {method: RouteMethod; path: string; [key: string]: unknown; pathParams?: RoutePathParams};
 
 /** Retrieve data from the server. Usually used to read a target entity. */
 export const GET: ReturnType<typeof routeMethodFactory<"GET">> = routeMethodFactory("GET");
