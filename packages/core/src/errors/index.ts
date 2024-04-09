@@ -1,4 +1,22 @@
+import type {z} from "zod";
 import type {Route} from "../schema";
+
+export function formatZodError(error: z.ZodError): string {
+  return error.errors.map((e) => `${e.message} at "${e.path.join(".")}"`).join(", ");
+}
+
+export class InitializationError extends Error {
+  private _code: InitializationErrorCode;
+
+  constructor(code: InitializationErrorCode, message: string) {
+    super(message);
+    this.name = "InitializationError";
+    this._code = code;
+  }
+  get code() {
+    return this._code;
+  }
+}
 
 export class RestWellError extends Error {
   private _code: RestWellErrorCode;
@@ -18,31 +36,42 @@ export class RestWellError extends Error {
   }
 }
 
-export const errors = {
+export const initErrors = {
   /*
    * Initialization errors (during schema or route creation).
    */
 
   init_duplicate_routes: (oldRoute: Route, newRoute: Route) =>
-    new RestWellError(
+    new InitializationError(
       "init_duplicate_routes",
-      `Duplicate routes: ${newRoute.method} "${newRoute.path}" is duplicated in your schema`,
-      `Update one of the routes in your schema, either by changing the path or the method`,
+      `Duplicate routes: ${newRoute.method} "${newRoute.path}" is duplicated in your schema. To fix this, update one of the routes in your schema, either by changing the path or the method`,
     ),
 
   init_overlapping_routes: (oldRoute: Route, newRoute: Route) =>
-    new RestWellError(
+    new InitializationError(
       "init_overlapping_routes",
-      `Overlapping routes: ${newRoute.method} "${newRoute.path}" matches same path as "${oldRoute.path}"`,
-      `Update one of the routes in your schema, either by changing the path or the method`,
+      `Overlapping routes: ${newRoute.method} "${newRoute.path}" matches same path as "${oldRoute.path}". To fix this, update one of the routes in your schema, either by changing the path or the method`,
     ),
 
   init_missing_route_implementation: (routeName: string) =>
-    new RestWellError(
+    new InitializationError(
       "init_missing_route_implementation",
-      `Missing route implementation: "${routeName}"`,
-      `Provide a route handler implementation for the route "${routeName}"`,
+      `Missing route implementation: "${routeName}". To fix this, provide a route handler implementation for the route.`,
     ),
 };
 
-type RestWellErrorCode = keyof typeof errors;
+export const errors = {
+  /**
+   * Runtime errors to handle.
+   */
+
+  invalid_path_params: (error: z.ZodError, routeTemplate: string) =>
+    new RestWellError(
+      "invalid_path_params",
+      `Invalid path: ${formatZodError(error)}`,
+      `Compare your path with the expected path "${routeTemplate}" and ensure it matches, and fix any errors`,
+    ),
+};
+
+export type InitializationErrorCode = keyof typeof initErrors;
+export type RestWellErrorCode = keyof typeof errors;

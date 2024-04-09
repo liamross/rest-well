@@ -1,9 +1,10 @@
 import type {z} from "zod";
 import {expect} from "vitest";
 import {isSameType} from "zod-compare";
+import type {InitializationErrorCode, RestWellErrorCode} from "../errors";
 import type {Branded} from "./branded";
 import type {Prettify} from "./helpers";
-import {RestWellError} from "../errors";
+import {InitializationError, RestWellError} from "../errors";
 
 type ValuesAreEqual<A, B> = Branded<{a: A; b: B}, "ValuesAreEqual">;
 type TypeMismatchError<A, B> = Branded<{a: A; b: B}, "TypeMismatchError">;
@@ -54,14 +55,26 @@ export function expectSameZodParse(z1: z.ZodType, z2: z.ZodType, obj: object, ex
   if (expected) expect(a.data).toEqual(expected);
 }
 
-export function handleRestWellError(fn: () => unknown, handler: (e: RestWellError) => void) {
+export function expectInitializationError(expectedCode: InitializationErrorCode, fn: () => unknown) {
+  try {
+    fn();
+    throw new Error("Expected an error to be thrown");
+  } catch (e) {
+    expect(e).toBeInstanceOf(InitializationError);
+    if (!(e instanceof InitializationError)) return;
+    expect(e.code).toBe(expectedCode);
+    return;
+  }
+}
+
+export function expectRestWellError(expectedCode: RestWellErrorCode, fn: () => unknown) {
   try {
     fn();
     throw new Error("Expected an error to be thrown");
   } catch (e) {
     expect(e).toBeInstanceOf(RestWellError);
     if (!(e instanceof RestWellError)) return;
-    handler(e);
+    expect(e.code).toBe(expectedCode);
     return;
   }
 }

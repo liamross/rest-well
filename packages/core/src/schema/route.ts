@@ -99,7 +99,7 @@ function routeMethodFactory<M extends RouteMethod>(method: M) {
   };
 }
 
-export type Route = {method: RouteMethod; path: string; [key: string]: unknown};
+export type Route = {method: RouteMethod; path: string; [key: string]: unknown; pathParams?: RoutePathParams};
 
 /** Retrieve data from the server. Usually used to read a target entity. */
 export const GET: ReturnType<typeof routeMethodFactory<"GET">> = routeMethodFactory("GET");

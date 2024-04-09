@@ -1,7 +1,7 @@
 import type {Route, Schema} from "../schema";
-import type {Prettify, PrettifyDeep, RouteMethod} from "../utils";
+import type {Prettify, PrettifyDeep, RouteMethod, UnknownObject} from "../utils";
 import type {RouterFunction, RouterImplementation} from "./router";
-import {errors} from "../errors";
+import {errors, initErrors} from "../errors";
 import {isRoute} from "../schema";
 
 // Symbols to represent dynamic paths and methods.
@@ -48,12 +48,6 @@ type SplitPathToObj<P extends PathSegments, Child> = P extends [
 ]
   ? {[_ in K]: Rest extends [] ? Child : SplitPathToObj<Rest, Child>}
   : Child;
-
-// function splitPathToObj<P extends PathSegments, Child>(path: P, child: Child): SplitPathToObj<P, Child> {
-//   if (path.length === 0) return child as SplitPathToObj<P, Child>;
-//   const [head, ...rest] = path;
-//   return {[head!]: splitPathToObj(rest, child)} as SplitPathToObj<P, Child>;
-// }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
@@ -111,7 +105,7 @@ function mergeFlattenedRouterTrees(oldTree: _FlattenedRouter, newTree: _Flattene
   for (const symbolKey of symbolKeys) {
     const value = newTree[symbolKey]!;
     const existing = oldTree[symbolKey];
-    if (existing) throw errors.init_duplicate_routes(existing.route, value.route);
+    if (existing) throw initErrors.init_duplicate_routes(existing.route, value.route);
     oldTree[symbolKey] = value;
   }
 
@@ -149,7 +143,7 @@ function flattenRouterTreeInner(
       if (Object.prototype.hasOwnProperty.call(schema, key)) {
         const schemaOrRoute = schema[key]!;
         const childImplementation = implementation[key as keyof typeof implementation];
-        if (!childImplementation) throw errors.init_missing_route_implementation(key);
+        if (!childImplementation) throw initErrors.init_missing_route_implementation(key);
         mergeFlattenedRouterTrees(result, flattenRouterTreeInner(schemaOrRoute, childImplementation));
       }
     }
@@ -176,7 +170,7 @@ function setMethodImplementations(oldTree: _PathTree, newTree: _FlattenedRouterL
   for (const key of keys) {
     const value = newTree[key]!;
     const existing = oldTree[key];
-    if (existing) throw errors.init_overlapping_routes(existing.route, value.route);
+    if (existing) throw initErrors.init_overlapping_routes(existing.route, value.route);
     oldTree[key] = value;
   }
 }
@@ -202,62 +196,52 @@ function buildPathTreeInner(input: _FlattenedRouter): _PathTree {
   return pathTree;
 }
 
-//
-
-//
-
-//
-
-type PathWithParams = {path: string; params: {[key: string]: string}};
-
-/**
- * Match the url to a template path and extract the parameters.
- *
- * @example
- * getPathWithParams("/users/1", ["/users/{id}"]); // {path: "/users/{id}", params: {id: "1"}}
- */
-export function getPathWithParams(pathname: string, paths: string[]): PathWithParams | null {
-  let match: (PathWithParams & {pathParts: string[]}) | null = null;
-
-  const urlParts = pathname.split("/");
-
-  pathLoop: for (const path of paths) {
-    const pathParts = path.split("/");
-
-    // Ensure pathParts is same length as urlParts so we can do non-null assertions.
-    if (pathParts.length !== urlParts.length) continue;
-
-    const params: {[key: string]: string} = {};
-
-    for (let i = 0; i < pathParts.length; i++) {
-      const pathPart = pathParts[i]!;
-      const urlPart = urlParts[i]!;
-      const matchPart = match && match.pathParts[i]!;
-
-      if (pathPart === urlPart) {
-        // If current match is less specific, we can clear it.
-        if (matchPart && isVariable(matchPart)) match = null;
-        continue;
-      } else if (isVariable(pathPart)) {
-        // If current match is more specific, we can skip this path.
-        if (matchPart && !isVariable(matchPart)) continue pathLoop;
-        params[pathPart.slice(1, -1)] = urlPart;
-        continue;
-      }
-
-      // If no match but also not a variable, we can skip this path.
-      continue pathLoop;
+// TODO: maybe do this in the collection step and save it in the implementation
+// object so we don't have to do this every time.
+function matchPathParams(path: string, params: string[]): {[key: string]: string} {
+  const variableNames: string[] = [];
+  for (const pathSegment of path.split("/")) {
+    if (pathSegment.startsWith("{") && pathSegment.endsWith("}")) {
+      variableNames.push(pathSegment.slice(1, -1));
     }
-
-    // If we still have a match by this point, then there are two routes with
-    // the same level of specificity and that is an error.
-    if (match) throw new Error(`You have two routes that match the same URL: '${match.path}' and '${path}'`);
-    match = {path, params, pathParts};
   }
-
-  return match && {path: match.path, params: match.params};
+  if (variableNames.length !== params.length) throw new Error("Invalid number of parameters");
+  return Object.fromEntries(variableNames.map((name, i) => [name, params[i]!]));
 }
 
-function isVariable(pathPart: string) {
-  return pathPart.startsWith("{") && pathPart.endsWith("}");
+export function getHandler(
+  pathTree: _PathTree,
+  path: string,
+  method: RouteMethod,
+): (_RouteAndImplementation & {params?: UnknownObject}) | undefined {
+  const pathSegments = path.slice(1).split("/");
+  const paramValues: string[] = [];
+
+  let current = pathTree;
+  for (const segment of pathSegments) {
+    if (current[segment]) {
+      current = current[segment]!;
+      continue;
+    }
+    if (current[_pathParam]) {
+      current = current[_pathParam]!;
+      paramValues.push(segment);
+      continue;
+    }
+    return undefined;
+  }
+
+  const routeAndImplementation = current[methodToSymbol[method]];
+  if (!routeAndImplementation) return undefined;
+
+  const stringParams = matchPathParams(routeAndImplementation.route.path, paramValues);
+  if (!stringParams) return routeAndImplementation;
+
+  const pathParams = routeAndImplementation.route.pathParams;
+  if (!pathParams) throw new Error("Route has path params but no pathParams schema");
+
+  const parsedParams = pathParams.safeParse(stringParams);
+  if (!parsedParams.success) throw errors.invalid_path_params(parsedParams.error, routeAndImplementation.route.path);
+
+  return {...routeAndImplementation, params: parsedParams.data};
 }

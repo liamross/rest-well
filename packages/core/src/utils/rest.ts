@@ -8,11 +8,10 @@ export type Path = string;
 export type QueryMethod = "GET";
 export type MutationMethod = "POST" | "DELETE" | "PUT" | "PATCH";
 
-type _RawZodShape = {[k: string | number]: z.ZodTypeAny};
-type _RawShape = {[k: string | number]: unknown};
+export type UnknownObject = {[k: string | number]: unknown};
 
 type UnknownZodType<T = unknown> = z.ZodType<T>;
-type UnknownZodObjectType<O extends object = _RawShape> = z.ZodType<O>;
+type UnknownZodObjectType<O extends object = UnknownObject> = z.ZodType<O>;
 
 // These are all the base types for route properties.
 export type RouteMethod = QueryMethod | MutationMethod;
@@ -22,6 +21,8 @@ export type RouteResponses = {[key: number]: UnknownZodType};
 export type RouteBody = UnknownZodType;
 export type RouteQuery = UnknownZodObjectType;
 export type RouteHeaders = UnknownZodObjectType;
+
+type _RawZodShape = {[k: string | number]: z.ZodTypeAny};
 
 // Enforce that path params has a key for every variable in the path.
 type _PathParamsInner<S extends Path> = S extends `${infer _Start}{${infer Param}}${infer Rest}`

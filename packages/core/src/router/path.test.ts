@@ -5,61 +5,42 @@ import type {Route} from "../schema";
 import type {Equal, Expect} from "../utils/test-helpers";
 import type {Router} from "./router";
 import {GET, POST, schema} from "../schema";
-import {handleRestWellError} from "../utils/test-helpers";
-import {_get, _pathParam, _post, buildPathTree, flattenRouterTree, getPathWithParams} from "./path";
+import {expectInitializationError, expectRestWellError} from "../utils/test-helpers";
+import {_get, _pathParam, _post, buildPathTree, flattenRouterTree, getHandler} from "./path";
 
-describe("getPathWithParams", () => {
-  const getPathWithParamsTests: {
-    params: Parameters<typeof getPathWithParams>;
-    expected: ReturnType<typeof getPathWithParams>;
-  }[] = [
-    // Basic matches.
-    {
-      params: ["/1", ["/{a}"]],
-      expected: {path: "/{a}", params: {a: "1"}},
+describe("getHandler", () => {
+  const exampleSchema = schema("/api/{version}", {
+    pathParams: z.object({
+      version: z.literal("v1"),
+    }),
+    routes: {
+      getUser: GET("/users/{id}", {
+        pathParams: z.object({id: z.coerce.number()}),
+        responses: {200: z.string()},
+      }),
     },
-    {
-      params: ["/a/b", ["/{a}/{b}"]],
-      expected: {path: "/{a}/{b}", params: {a: "a", b: "b"}},
-    },
+  });
+  const router: Router = (_, i) => i;
+  const exampleImplementation = router(exampleSchema, {getUser: async () => ({status: 200, body: "A user"})});
+  const exampleFlattened = flattenRouterTree(exampleSchema, exampleImplementation);
+  const exampleTree = buildPathTree(exampleFlattened);
 
-    // No matches.
-    {
-      params: ["/a", ["/{a}/{b}"]],
-      expected: null,
-    },
-    {
-      params: ["/a/b", ["/{a}"]],
-      expected: null,
-    },
-
-    // Prioritize static parts.
-    {
-      params: ["/a", ["/{a}", "/a"]],
-      expected: {path: "/a", params: {}},
-    },
-    {
-      params: ["/a", ["/a", "/{a}"]],
-      expected: {path: "/a", params: {}},
-    },
-    {
-      params: ["/a/b", ["/{a}/{b}", "/a/{b}"]],
-      expected: {path: "/a/{b}", params: {b: "b"}},
-    },
-    {
-      params: ["/a/b", ["/a/{b}", "/{a}/{b}"]],
-      expected: {path: "/a/{b}", params: {b: "b"}},
-    },
-  ];
-
-  test.each(getPathWithParamsTests)("getPathWithParams($params.0, $params.1) === $expected", (test) => {
-    expect(getPathWithParams(...test.params)).toEqual(test.expected);
+  test("can get a handler", () => {
+    const handler = getHandler(exampleTree, "/api/v1/users/1", "GET");
+    expect(handler).toBeDefined();
+    if (!handler) return;
+    expect(handler.fn).toBe(exampleImplementation.getUser);
+    expect(handler.route.path).toBe("/api/{version}/users/{id}");
+    expect(handler.params).toEqual({version: "v1", id: 1});
   });
 
-  test("throws when two routes match the same URL", () => {
-    expect(() => getPathWithParams("/one/something/two", ["/{a}/something/{a}", "/{b}/something/{b}"])).toThrow(
-      `You have two routes that match the same URL: '/{a}/something/{a}' and '/{b}/something/{b}'`,
-    );
+  test("returns undefined if no handler found", () => {
+    const handler = getHandler(exampleTree, "/api/v1/users/1", "POST");
+    expect(handler).toBeUndefined();
+  });
+
+  test("fails if path params are invalid", () => {
+    expectRestWellError("invalid_path_params", () => getHandler(exampleTree, "/api/v2/users/1", "GET"));
   });
 });
 
@@ -130,10 +111,7 @@ describe("Route parsing", () => {
         a: async () => ({status: 200, body: "a"}),
         b: async () => ({status: 200, body: "b"}),
       });
-      handleRestWellError(
-        () => flattenRouterTree(duplicateSchema, duplicateRouter),
-        (e) => expect(e.code).toBe("init_duplicate_routes"),
-      );
+      expectInitializationError("init_duplicate_routes", () => flattenRouterTree(duplicateSchema, duplicateRouter));
     });
 
     test("no error if duplicate route has different method", () => {
@@ -164,9 +142,8 @@ describe("Route parsing", () => {
 
     test("errors on missing implementations", () => {
       const exampleMissingImplementation = router(exampleSchema, {getUser: undefined!});
-      handleRestWellError(
-        () => flattenRouterTree(exampleSchema, exampleMissingImplementation),
-        (e) => expect(e.code).toBe("init_missing_route_implementation"),
+      expectInitializationError("init_missing_route_implementation", () =>
+        flattenRouterTree(exampleSchema, exampleMissingImplementation),
       );
     });
   });
@@ -192,10 +169,7 @@ describe("Route parsing", () => {
       // Not thrown since paths are not an exact match.
       const flat = flattenRouterTree(overlappingSchema, overlappingRouter);
       // However, they match once the variables are extracted.
-      handleRestWellError(
-        () => buildPathTree(flat),
-        (e) => expect(e.code).toBe("init_overlapping_routes"),
-      );
+      expectInitializationError("init_overlapping_routes", () => buildPathTree(flat));
     });
 
     test("no error if overlapping route has different method", () => {
