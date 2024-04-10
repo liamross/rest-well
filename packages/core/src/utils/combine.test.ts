@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import {describe, expect, expectTypeOf, it} from "vitest";
 import {z} from "zod";
-import type {Equal, EqualZod, EqualZodInfer, Expect} from "./test-helpers";
+import type {EqualZod, Expect} from "./test-helpers";
 import {combineObjects, combineStrings, combineZodSchemas} from "./combine";
 import {expectSameZodParse, expectSameZodType} from "./test-helpers";
 
@@ -8,14 +8,14 @@ describe("combineStrings", () => {
   it("should combine two strings", () => {
     const result = combineStrings("Hello", "World");
     const expected = "HelloWorld";
-    type __ = Expect<Equal<typeof result, typeof expected>>;
+    expectTypeOf(result).toEqualTypeOf<typeof expected>(expected);
     expect(result).toBe(expected);
   });
 
   it("should handle undefined values", () => {
     const result = combineStrings(undefined, "World");
     const expected = "World";
-    type __ = Expect<Equal<typeof result, typeof expected>>;
+    expectTypeOf(result).toEqualTypeOf<typeof expected>(expected);
     expect(result).toBe(expected);
   });
 });
@@ -26,7 +26,7 @@ describe("combineObjects", () => {
     const obj2 = {c: 3, d: 4};
     const result = combineObjects(obj1, obj2);
     const expected = {a: 1, b: 2, c: 3, d: 4};
-    type __ = Expect<Equal<typeof result, typeof expected>>;
+    expectTypeOf(result).toEqualTypeOf(expected);
     expect(result).toEqual(expected);
   });
 
@@ -34,7 +34,7 @@ describe("combineObjects", () => {
     const obj2 = {a: 1, b: 2};
     const result = combineObjects(undefined, obj2);
     const expected = obj2;
-    type __ = Expect<Equal<typeof result, typeof expected>>;
+    expectTypeOf(result).toEqualTypeOf(expected);
     expect(result).toEqual(expected);
   });
 
@@ -42,7 +42,7 @@ describe("combineObjects", () => {
     // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
     const result = combineObjects(undefined, undefined);
     const expected = undefined;
-    type __ = Expect<Equal<typeof result, typeof expected>>;
+    expectTypeOf(result).toEqualTypeOf(expected);
     expect(result).toBe(expected);
   });
 
@@ -51,7 +51,7 @@ describe("combineObjects", () => {
     const obj2 = {b: "3", c: 4} as const;
     const result = combineObjects(obj1, obj2);
     const expected = {a: 1, b: "3", c: 4} as const;
-    type __ = Expect<Equal<typeof result, typeof expected>>;
+    expectTypeOf(result).toEqualTypeOf(expected);
     expect(result).toEqual(expected);
   });
 });
@@ -62,7 +62,7 @@ describe("combineZodSchemas", () => {
     const obj2 = z.object({c: z.string(), d: z.string()});
     const result = combineZodSchemas(obj1, obj2);
     const expected = z.object({a: z.literal("v1"), b: z.string(), c: z.string(), d: z.string()});
-    type __ = Expect<EqualZod<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toEqualTypeOf(expected._type);
     expectSameZodType(result, expected);
   });
 
@@ -71,7 +71,7 @@ describe("combineZodSchemas", () => {
     const obj2 = z.object({c: z.string(), d: z.string()}).refine(() => true);
     const result = combineZodSchemas(obj1, obj2);
     const expected = z.object({a: z.string(), b: z.string(), c: z.string(), d: z.string()});
-    type __ = Expect<EqualZodInfer<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toMatchTypeOf(expected._type);
     expectSameZodParse(result, expected, {a: "a", b: "b", c: "c", d: "d", e: "e"});
   });
 
@@ -80,7 +80,7 @@ describe("combineZodSchemas", () => {
     const obj2 = z.object({c: z.string(), d: z.string()});
     const result = combineZodSchemas(obj1, obj2);
     const expected = z.object({a: z.string(), b: z.string(), c: z.string(), d: z.string()});
-    type __ = Expect<EqualZodInfer<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toMatchTypeOf(expected._type);
     expectSameZodParse(result, expected, {a: "a", b: "b", c: "c", d: "d", e: "e"});
   });
 
@@ -89,7 +89,7 @@ describe("combineZodSchemas", () => {
     const obj2 = z.object({c: z.string(), d: z.string()}).refine(() => true);
     const result = combineZodSchemas(obj1, obj2);
     const expected = z.object({a: z.string(), b: z.string(), c: z.string(), d: z.string()});
-    type __ = Expect<EqualZodInfer<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toMatchTypeOf(expected._type);
     expectSameZodParse(result, expected, {a: "a", b: "b", c: "c", d: "d", e: "e"}, {a: "a", b: "b", c: "c", d: "d"});
   });
 
@@ -99,6 +99,7 @@ describe("combineZodSchemas", () => {
     const result = combineZodSchemas(obj1, obj2);
     const expected = z.object({a: z.unknown(), b: z.string(), c: z.unknown(), d: z.string()});
     type __ = Expect<EqualZod<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toEqualTypeOf(expected._type);
     expectSameZodType(result, expected);
   });
 
@@ -107,6 +108,7 @@ describe("combineZodSchemas", () => {
     const result = combineZodSchemas(undefined, obj2);
     const expected = obj2;
     type __ = Expect<EqualZod<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toEqualTypeOf(expected._type);
     expectSameZodType(result, expected);
   });
 
@@ -114,7 +116,7 @@ describe("combineZodSchemas", () => {
     // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
     const result = combineZodSchemas(undefined, undefined);
     const expected = undefined;
-    type __ = Expect<Equal<typeof result, typeof expected>>;
+    expectTypeOf(result).toEqualTypeOf(expected);
     expect(result).toBe(expected);
   });
 
@@ -124,6 +126,7 @@ describe("combineZodSchemas", () => {
     const result = combineZodSchemas(obj1, obj2);
     const expected = z.object({a: z.number(), b: z.string(), c: z.number()});
     type __ = Expect<EqualZod<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toEqualTypeOf(expected._type);
     expectSameZodType(result, expected);
   });
 
@@ -143,6 +146,7 @@ describe("combineZodSchemas", () => {
     const result = combineZodSchemas(preresult, obj3);
     const expected = z.object({a: z.number(), b: z.string(), c: z.string(), d: z.number()});
     type __ = Expect<EqualZod<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toEqualTypeOf(expected._type);
     expectSameZodType(result, expected);
   });
 
@@ -156,6 +160,7 @@ describe("combineZodSchemas", () => {
     const result = combineZodSchemas(c, obj3);
     const expected = z.object({a: z.number(), b: z.string(), c: z.string(), d: z.number()});
     type __ = Expect<EqualZod<typeof result, typeof expected>>;
+    expectTypeOf(result._type).toEqualTypeOf(expected._type);
     expectSameZodType(result, expected);
   });
 });

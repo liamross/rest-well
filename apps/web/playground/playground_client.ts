@@ -11,7 +11,7 @@ export async function main() {
       headers: {authorization: "123", override: 1},
       routes: {
         users: {
-          headers: {override: "hey"},
+          headers: {override: "hey", "user-header": "test"},
           routes: {
             user: {
               params: {id: "test"},
@@ -29,6 +29,8 @@ export async function main() {
   // const client = createClient(apiResource);
 
   const health = await client.healthcheck({});
+
+  const list = await client.users.list({});
 
   const createUser = await client.users.create({
     headers: {

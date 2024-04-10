@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await */
-import {describe, expect, test} from "vitest";
+import {describe, expect, expectTypeOf, test} from "vitest";
 import {z} from "zod";
 import type {Route} from "../schema";
-import type {Equal, Expect} from "../utils/test-helpers";
 import {GET, POST, schema} from "../schema";
 import {expectInitializationError, expectRestWellError} from "../utils/test-helpers";
 import {$$variable, buildRouterTree, flattenRouterTree, getRouteHandler, methodToSymbol} from "./path";
@@ -61,12 +60,12 @@ describe("Route parsing", () => {
 
   describe("flattenRouterTree", () => {
     test("can flatten a router tree", () => {
-      const expectedKey = "/api/{version}/users/{id}";
-      type _ = Expect<Equal<keyof typeof exampleFlattened, typeof expectedKey>>;
-      const keys = Object.keys(exampleFlattened);
+      const keys = Object.keys(exampleFlattened) as (keyof typeof exampleFlattened)[];
       expect(keys.length).toBe(1);
+      const expectedKey = "/api/{version}/users/{id}";
       expect(keys[0]).toBe(expectedKey);
-      const child = exampleFlattened[keys[0] as keyof typeof exampleFlattened];
+      expectTypeOf(keys[0]!).toEqualTypeOf<typeof expectedKey>(expectedKey);
+      const child = exampleFlattened[keys[0]!];
       const symbolKeys = Object.getOwnPropertySymbols(child);
       expect(symbolKeys.length).toBe(1);
       expect(symbolKeys[0]).toBe(methodToSymbol("GET"));
@@ -123,12 +122,12 @@ describe("Route parsing", () => {
         b: async () => ({status: 200, body: "b"}),
       });
       const flat = flattenRouterTree(duplicateSchema, duplicateRouter);
-      const keys = Object.keys(flat);
+      const keys = Object.keys(flat) as (keyof typeof flat)[];
       expect(keys.length).toBe(1);
       const expectedKey = "/{a}";
       expect(keys[0]).toBe(expectedKey);
-      type _ = Expect<Equal<keyof typeof flat, typeof expectedKey>>;
-      const child = flat[keys[0] as typeof expectedKey];
+      expectTypeOf(keys[0]!).toEqualTypeOf<typeof expectedKey>(expectedKey);
+      const child = flat[keys[0]!];
       const symbolKeys = Object.getOwnPropertySymbols(child);
       expect(symbolKeys.length).toBe(2);
       expect(symbolKeys).toContain(methodToSymbol("GET"));

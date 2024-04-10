@@ -3,16 +3,12 @@ import type {
   CombineObjects,
   CombineStrings,
   CombineZodSchemas,
-  MediaType,
-  Method,
   NoEmptyObject,
   Path,
   PathParams,
   PathParamSchema,
   Prettify,
-  RequestBody,
   RequestHeaders,
-  RequestQuery,
   Responses,
   ResponseWithHeaders,
   RestrictPath,
@@ -56,30 +52,24 @@ export type Schema = {[key: string]: Route | Schema};
 
 /** Result of combining schema properties with a route. */
 type RoutePropertiesCombined<
-  // Route.
-  P extends Path,
-  PP extends PathParams | undefined,
-  M extends Method,
-  R extends Responses,
-  CT extends MediaType | undefined,
-  B extends RequestBody | undefined,
-  Q extends RequestQuery | undefined,
-  H extends RequestHeaders | undefined,
-  // Schema
+  T extends Route,
   BP extends Path,
   BPP extends PathParams | undefined,
   SR extends Responses | undefined,
   SH extends RequestHeaders | undefined,
-> = RouteProperties<
-  CombineStrings<BP, P>,
-  CombineZodSchemas<BPP, PP>,
-  M,
-  CombineObjects<SR, R>,
-  CT,
-  B,
-  Q,
-  CombineZodSchemas<SH, H>
->;
+> =
+  T extends RouteProperties<infer P, infer PP, infer M, infer R, infer CT, infer B, infer Q, infer H>
+    ? RouteProperties<
+        CombineStrings<BP, P>,
+        CombineZodSchemas<BPP, PP>,
+        M,
+        CombineObjects<SR, R>,
+        CT,
+        B,
+        Q,
+        CombineZodSchemas<SH, H>
+      >
+    : never;
 
 /** Combine schema properties with a route. */
 function combineRouteWithSchema(route: Route, schemaProperties?: _SchemaProperties): Route {
@@ -106,17 +96,8 @@ export type FlushedSchema<
   SR extends Responses | undefined,
   SH extends RequestHeaders | undefined,
 > = {
-  [K in keyof Res]: Res[K] extends RouteProperties<
-    infer P,
-    infer PP,
-    infer M,
-    infer R,
-    infer CT,
-    infer B,
-    infer Q,
-    infer H
-  >
-    ? Prettify<RoutePropertiesCombined<P, PP, M, R, CT, B, Q, H, BP, BPP, SR, SH>>
+  [K in keyof Res]: Res[K] extends Route
+    ? Prettify<RoutePropertiesCombined<Res[K], BP, BPP, SR, SH>>
     : Res[K] extends Schema
       ? FlushedSchema<Res[K], BP, BPP, SR, SH>
       : never;
@@ -124,12 +105,12 @@ export type FlushedSchema<
 
 /** Combine all routes with the properties passed to the schema. */
 function flushSchema<
-  Res extends Schema,
+  S extends Schema,
   BP extends Path,
   BPP extends PathParamSchema<BP>,
   SR extends Responses | undefined,
   SH extends RequestHeaders | undefined,
->(schema: Res, properties: SchemaProperties<BP, BPP, SR, SH>): FlushedSchema<Res, BP, BPP, SR, SH> {
+>(schema: S, properties: SchemaProperties<BP, BPP, SR, SH>): FlushedSchema<S, BP, BPP, SR, SH> {
   const flushed: Schema = {};
   for (const key in schema) {
     const value = schema[key]!;
@@ -139,36 +120,36 @@ function flushSchema<
       flushed[key] = flushSchema(value, properties);
     }
   }
-  return flushed as FlushedSchema<Res, BP, BPP, SR, SH>;
+  return flushed as FlushedSchema<S, BP, BPP, SR, SH>;
 }
 
 export function schema<
-  Res extends Schema,
+  S extends Schema,
   SR extends Responses | undefined = undefined,
   SH extends RequestHeaders | undefined = undefined,
->(properties: SchemaCreateProperties<Res, "", undefined, SR, SH>): FlushedSchema<Res, "", undefined, SR, SH>;
+>(properties: SchemaCreateProperties<S, "", undefined, SR, SH>): FlushedSchema<S, "", undefined, SR, SH>;
 
 export function schema<
-  Res extends Schema,
+  S extends Schema,
   BP extends Path,
   BPP extends PathParamSchema<BP>,
   SR extends Responses | undefined = undefined,
   SH extends RequestHeaders | undefined = undefined,
 >(
   basePath: RestrictPath<BP>,
-  properties: SchemaCreateProperties<Res, BP, BPP, SR, SH>,
-): FlushedSchema<Res, BP, BPP, SR, SH>;
+  properties: SchemaCreateProperties<S, BP, BPP, SR, SH>,
+): FlushedSchema<S, BP, BPP, SR, SH>;
 
 export function schema<
-  Res extends Schema,
+  S extends Schema,
   BP extends Path,
   BPP extends PathParamSchema<BP>,
   SR extends Responses | undefined = undefined,
   SH extends RequestHeaders | undefined = undefined,
 >(
-  pathOrProps: BP | SchemaCreateProperties<Res, BP, BPP, SR, SH>,
-  propsIfPath?: SchemaCreateProperties<Res, BP, BPP, SR, SH>,
-): FlushedSchema<Res, BP, BPP, SR, SH> | FlushedSchema<Res, "", undefined, SR, SH> {
+  pathOrProps: BP | SchemaCreateProperties<S, BP, BPP, SR, SH>,
+  propsIfPath?: SchemaCreateProperties<S, BP, BPP, SR, SH>,
+): FlushedSchema<S, BP, BPP, SR, SH> | FlushedSchema<S, "", undefined, SR, SH> {
   if (typeof pathOrProps === "string") {
     if (!propsIfPath) throw new Error("Second argument must be a schema properties object.");
     return flushSchema(propsIfPath.routes, getSchemaProps(pathOrProps, propsIfPath));
@@ -177,12 +158,12 @@ export function schema<
 }
 
 function getSchemaProps<
-  Res extends Schema,
+  S extends Schema,
   BP extends Path,
   BPP extends PathParamSchema<BP>,
   SR extends Responses | undefined,
   SH extends RequestHeaders | undefined,
->(basePath: BP, props: SchemaCreateProperties<Res, BP, BPP, SR, SH>): SchemaProperties<BP, BPP, SR, SH> {
+>(basePath: BP, props: SchemaCreateProperties<S, BP, BPP, SR, SH>): SchemaProperties<BP, BPP, SR, SH> {
   const route = props as typeof props & {pathParams: BPP};
   return {...route, basePath};
 }
