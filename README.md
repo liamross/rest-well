@@ -1,5 +1,8 @@
 # Rest Well
 
+> [!WARNING]
+> This is no longer being maintained, it was basically going to be what [oRPC](https://orpc.unnoq.com) is, so just use oRPC!
+
 ## Architecture
 
 ![diagram](./diagrams/parsing/.excalidraw.png)
